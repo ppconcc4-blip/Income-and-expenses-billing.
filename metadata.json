@@ -1,0 +1,6 @@
+{
+  "name": "PP Construction Account & Billing",
+  "description": "ระบบลงบัญชีรายรับรายจ่าย การวางบิล โครงการก่อสร้าง บริษัท พีพี. คอนสตรัคชั่น แอนด์ แมเนจเม้นท์ จำกัด พร้อมกราฟสรุป เชื่อมต่อ Google Sheets และแจ้งเตือน LINE Notify",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
