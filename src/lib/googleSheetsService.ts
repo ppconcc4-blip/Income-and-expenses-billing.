@@ -931,7 +931,7 @@ export async function pullDataFromGoogleSheets(
     // 0. Pull Project Details Tab if exists in incomeSheetId or billingSheetId
     const pullProjectDetailsFromSheet = async (sheetId: string) => {
       try {
-        const valRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/'รายละเอียดโครงการ'!A2:H1000`, {
+        const valRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/'รายละเอียดโครงการ'!A2:J1000`, {
           headers: { 'Authorization': `Bearer ${accessToken}` }
         });
         if (valRes.ok) {
