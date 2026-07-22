@@ -1,13 +1,11 @@
 {
-  "projectId": "billing-aaa4b",
-  "appId": "1:582100900166:web:9ed2c13683cdb9d0cced47",
-  "apiKey": "AIzaSyB5DioKVoG8hPjCOYAse7JWUi9t229hawM",
-  "authDomain": "billing-aaa4b.firebaseapp.com",
-  "storageBucket": "billing-aaa4b.firebasestorage.app",
-  "messagingSenderId": "582100900166",
-  "measurementId": "G-JVM5PMQYHQ",
-  "oAuthClientId": "985107440341-gg1snji70sbk4srav1a2nd0skl7sdh3v.apps.googleusercontent.com",
+  "projectId": "gen-lang-client-0787382696",
+  "appId": "1:169444433607:web:2545b4f7351054dc36a8e2",
+  "apiKey": "AIzaSyBRN-_leCVyv_qszf9RlCDUXrXTjYdpMKU",
+  "authDomain": "gen-lang-client-0787382696.firebaseapp.com",
+  "storageBucket": "gen-lang-client-0787382696.firebasestorage.app",
+  "messagingSenderId": "169444433607",
+  "measurementId": "",
+  "oAuthClientId": "169444433607-b7vor6esl6nb6jqoq8l7duo3t1d7qcpp.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }
-
-

@@ -41,7 +41,8 @@ import {
   updateBillingStatusInSheet, 
   deleteTransactionInSheet, 
   deleteBillingInSheet,
-  pullDataFromGoogleSheets
+  pullDataFromGoogleSheets,
+  extractSpreadsheetId
 } from './lib/googleSheetsService';
 
 const DEFAULT_EXPENSE_CATS = [
@@ -268,6 +269,19 @@ export default function App() {
       alert(res.message);
     } else {
       alert(res.message || 'ไม่สามารถดึงข้อมูลจาก Google Sheets ได้');
+    }
+  };
+
+  const handleUpdateSheetIds = (incomeInput: string, billingInput: string) => {
+    if (incomeInput) {
+      const id = extractSpreadsheetId(incomeInput) || incomeInput.trim();
+      setIncomeSheetId(id);
+      localStorage.setItem('pp_income_sheet_id', id);
+    }
+    if (billingInput) {
+      const id = extractSpreadsheetId(billingInput) || billingInput.trim();
+      setBillingSheetId(id);
+      localStorage.setItem('pp_billing_sheet_id', id);
     }
   };
 
@@ -654,6 +668,7 @@ export default function App() {
         incomeSheetId={incomeSheetId}
         billingSheetId={billingSheetId}
         onPullFromSheets={handlePullDataFromGoogleSheets}
+        onUpdateSheetIds={handleUpdateSheetIds}
       />
 
       <BillingPdfModal

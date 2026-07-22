@@ -32,6 +32,7 @@ interface GoogleSheetModalProps {
   incomeSheetId?: string | null;
   billingSheetId?: string | null;
   onPullFromSheets?: () => Promise<void>;
+  onUpdateSheetIds?: (incomeId: string, billingId: string) => void;
 }
 
 export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
@@ -45,11 +46,14 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
   onSheetsCreated,
   incomeSheetId,
   billingSheetId,
-  onPullFromSheets
+  onPullFromSheets,
+  onUpdateSheetIds
 }) => {
   const [activeTab, setActiveTab] = useState<'income' | 'billing'>('income');
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [isPulling, setIsPulling] = useState<boolean>(false);
+  const [manualIncomeUrl, setManualIncomeUrl] = useState<string>('');
+  const [manualBillingUrl, setManualBillingUrl] = useState<string>('');
   const [createMsg, setCreateMsg] = useState<{ 
     success: boolean; 
     msg: string; 
@@ -239,28 +243,96 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
         {/* Embedded Iframe Preview */}
         <div className="flex-1 bg-slate-950 relative overflow-hidden flex flex-col justify-center items-center p-6 text-center">
           {embedUrl ? (
-            <iframe
-              src={embedUrl}
-              title="Google Sheets Live Frame"
-              className="w-full h-full border-0 absolute inset-0"
-              allow="autoplay; encrypted-media"
-            />
+            <div className="w-full h-full relative flex flex-col">
+              <iframe
+                src={embedUrl}
+                title="Google Sheets Live Frame"
+                className="w-full flex-1 border-0"
+                allow="autoplay; encrypted-media"
+              />
+              <div className="bg-slate-900 border-t border-slate-800 p-2 text-left flex items-center justify-between text-xs text-slate-400">
+                <span>หากต้องการเปลี่ยนลิงก์ Google Sheet เดิม สามารถวางลิงก์ใหม่ได้ที่นี่</span>
+                <details className="cursor-pointer">
+                  <summary className="text-amber-400 font-bold hover:underline">🔗 เชื่อมต่อ Sheet เดิม / เปลี่ยนลิงก์</summary>
+                  <div className="mt-2 p-3 bg-slate-950 rounded-lg border border-slate-700 flex flex-col gap-2 w-80">
+                    <input 
+                      type="text" 
+                      value={manualIncomeUrl}
+                      onChange={(e) => setManualIncomeUrl(e.target.value)}
+                      placeholder="ลิงก์ Sheet รายรับ-รายจ่าย..."
+                      className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-[11px]"
+                    />
+                    <input 
+                      type="text" 
+                      value={manualBillingUrl}
+                      onChange={(e) => setManualBillingUrl(e.target.value)}
+                      placeholder="ลิงก์ Sheet การวางบิล..."
+                      className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-[11px]"
+                    />
+                    <button
+                      onClick={() => {
+                        if (onUpdateSheetIds && (manualIncomeUrl || manualBillingUrl)) {
+                          onUpdateSheetIds(manualIncomeUrl, manualBillingUrl);
+                          setCreateMsg({ success: true, msg: 'อัปเดตลิงก์ Google Sheet สำเร็จแล้ว!' });
+                        }
+                      }}
+                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-1 rounded text-[11px]"
+                    >
+                      บันทึก Sheet นี้
+                    </button>
+                  </div>
+                </details>
+              </div>
+            </div>
           ) : (
-            <div className="text-slate-400 max-w-md mx-auto">
+            <div className="text-slate-400 max-w-md mx-auto p-4">
               <FileSpreadsheet className="w-16 h-16 mx-auto mb-4 text-slate-600 opacity-50" />
               <h3 className="text-lg font-bold text-slate-300 mb-2">ยังไม่มีการเชื่อมต่อ Google Sheets</h3>
-              <p className="text-sm mb-6">
-                ระบบต้องการสร้างไฟล์ Google Sheets 2 ไฟล์แยกกันสำหรับ รายรับ-รายจ่าย และ การวางบิล
-                เพื่อทำการเชื่อมต่อและบันทึกข้อมูลอัตโนมัติ
+              <p className="text-sm mb-4">
+                คุณสามารถสร้างไฟล์ใหม่ใน Google Drive หรือนำลิงก์ Google Sheet เดิมที่เคยทำไว้มาเชื่อมต่อได้ทันที
               </p>
-              <button
-                onClick={handleCreateFolderSheets}
-                disabled={isExporting}
-                className="flex items-center justify-center space-x-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-6 py-3 rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-50 mx-auto"
-              >
-                <FolderPlus className="w-5 h-5" />
-                <span>{isExporting ? 'กำลังสร้างไฟล์ใน Drive...' : '📁 สร้างไฟล์และเชื่อมต่อ Sheets'}</span>
-              </button>
+              
+              <div className="flex flex-col gap-3 mb-6">
+                <button
+                  onClick={handleCreateFolderSheets}
+                  disabled={isExporting}
+                  className="flex items-center justify-center space-x-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-6 py-3 rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-50 mx-auto w-full"
+                >
+                  <FolderPlus className="w-5 h-5" />
+                  <span>{isExporting ? 'กำลังสร้างไฟล์ใน Drive...' : '📁 สร้างไฟล์ใหม่และเชื่อมต่อ Sheets'}</span>
+                </button>
+
+                <div className="p-4 bg-slate-900 border border-slate-700 rounded-xl text-left">
+                  <h4 className="text-xs font-bold text-amber-400 mb-2">🔗 ใช้ Google Sheet เดิม (จาก AI Studio หรือ Drive)</h4>
+                  <div className="space-y-2 mb-2">
+                    <input 
+                      type="text" 
+                      value={manualIncomeUrl}
+                      onChange={(e) => setManualIncomeUrl(e.target.value)}
+                      placeholder="วางลิงก์ Sheet รายรับ-รายจ่าย..."
+                      className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                    />
+                    <input 
+                      type="text" 
+                      value={manualBillingUrl}
+                      onChange={(e) => setManualBillingUrl(e.target.value)}
+                      placeholder="วางลิงก์ Sheet การวางบิล..."
+                      className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (onUpdateSheetIds && (manualIncomeUrl || manualBillingUrl)) {
+                        onUpdateSheetIds(manualIncomeUrl, manualBillingUrl);
+                        setCreateMsg({ success: true, msg: 'เชื่อมต่อ Google Sheet เดิมสำเร็จแล้ว!' });
+                      }
+                    }}
+                    className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 rounded-lg text-xs transition-all"
+                  >
+                    เชื่อมต่อ Sheet เดิมนี้
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
