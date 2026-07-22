@@ -68,7 +68,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
               </h1>
               <p className="text-sm sm:text-base font-semibold text-amber-400 mt-0.5 flex items-center gap-2">
                 <Building2 className="w-4 h-4 inline shrink-0" />
-                บริษัท พีพี. คอนสตรัคชั่น แอนด์ แมเนจเม้นท์ จำกัด
+                บริษัท พีพี. คอนสตรัคชั่น แอนด์ แมนเนจเม้นท์ จำกัด
               </p>
               <div className="w-full h-1 bg-gradient-to-r from-blue-500 via-amber-400 to-blue-600 rounded-full mt-2" />
             </div>

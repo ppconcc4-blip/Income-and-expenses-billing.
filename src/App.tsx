@@ -38,6 +38,7 @@ import {
   autoSyncBillingToSheet, 
   deleteSheetTab, 
   ensureSheetTabExists, 
+  updateProjectDetailsSheet,
   updateBillingStatusInSheet, 
   deleteTransactionInSheet, 
   deleteBillingInSheet,
@@ -260,6 +261,10 @@ export default function App() {
 
     const res = await pullDataFromGoogleSheets(token, targetIncomeId, targetBillingId, projects);
     if (res.success) {
+      if (res.projects && res.projects.length > 0) {
+        setProjects(res.projects);
+        localStorage.setItem('pp_projects', JSON.stringify(res.projects));
+      }
       if (res.transactions && res.transactions.length > 0) {
         setTransactions(res.transactions);
       }
@@ -428,6 +433,13 @@ export default function App() {
     }
 
     setProjects(prev => prev.filter(p => p.id !== projectId));
+
+    // Update Project Details sheet
+    const updatedProjects = projects.filter(p => p.id !== projectId);
+    const incId = incomeSheetId || localStorage.getItem('pp_income_sheet_id');
+    if (googleAccessToken && incId) {
+      updateProjectDetailsSheet(googleAccessToken, incId, updatedProjects).catch(err => console.error('Error updating project details after deletion:', err));
+    }
   };
 
   // Add Project Handler
@@ -459,6 +471,9 @@ export default function App() {
           }
         }).catch(err => console.error('Error creating billing tab:', err));
       }
+      
+      // Update Project Details sheet
+      updateProjectDetailsSheet(googleAccessToken, incId, [...projects, newProj]).catch(err => console.error('Error updating project details:', err));
     }
 
     setProjects(prev => [...prev, newProj]);

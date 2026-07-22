@@ -59,7 +59,6 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
   const [endDate, setEndDate] = useState<string>(
     new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );
-  const [sheetTabName, setSheetTabName] = useState<string>('');
   const [sheetUrlIncome, setSheetUrlIncome] = useState<string>(DEFAULT_SHEET_INCOME);
   const [sheetUrlBilling, setSheetUrlBilling] = useState<string>(DEFAULT_SHEET_BILLING);
   const [drawingDriveId, setDrawingDriveId] = useState<string>('');
@@ -75,6 +74,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
   const [editClientName, setEditClientName] = useState<string>('');
   const [editContractValue, setEditContractValue] = useState<string>('');
   const [editBudget, setEditBudget] = useState<string>('');
+  const [editStartDate, setEditStartDate] = useState<string>('');
+  const [editEndDate, setEditEndDate] = useState<string>('');
   const [editStatus, setEditStatus] = useState<'active' | 'completed'>('active');
   const [editDrawingDriveId, setEditDrawingDriveId] = useState<string>('');
   const [editBoqDriveId, setEditBoqDriveId] = useState<string>('');
@@ -86,6 +87,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       setEditClientName(projectToEdit.clientName || '');
       setEditContractValue(projectToEdit.contractValue.toString());
       setEditBudget(projectToEdit.budget.toString());
+      setEditStartDate(projectToEdit.startDate || new Date().toISOString().split('T')[0]);
+      setEditEndDate(projectToEdit.endDate || new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0]);
       setEditStatus(projectToEdit.status === 'completed' ? 'completed' : 'active');
       setEditDrawingDriveId(projectToEdit.drawingDriveId || '');
       setEditBoqDriveId(projectToEdit.boqDriveId || '');
@@ -102,6 +105,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       clientName: editClientName.trim() || 'ไม่ระบุ',
       contractValue: Number(editContractValue) || 0,
       budget: Number(editBudget) || 0,
+      startDate: editStartDate || projectToEdit.startDate,
+      endDate: editEndDate || projectToEdit.endDate,
       status: editStatus,
       drawingDriveId: editDrawingDriveId.trim(),
       boqDriveId: editBoqDriveId.trim()
@@ -215,9 +220,16 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
               <h3 className="text-base font-bold text-white mt-2 group-hover:text-amber-300 transition-colors line-clamp-2">
                 {p.name}
               </h3>
-              <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                👤 ผู้ว่าจ้าง: <span className="text-slate-200 font-semibold">{p.clientName}</span>
-              </p>
+              <div className="flex items-center justify-between mt-1 text-xs text-slate-400">
+                <p className="flex items-center gap-1">
+                  👤 ผู้ว่าจ้าง: <span className="text-slate-200 font-semibold">{p.clientName}</span>
+                </p>
+                {p.startDate && (
+                  <span className="bg-slate-800 text-amber-300 px-2 py-0.5 rounded-full text-[10px] font-medium border border-amber-500/20">
+                    ⏱️ ดำเนินการมาแล้ว {Math.max(0, Math.floor(( (p.status === 'completed' && p.endDate ? new Date(p.endDate).getTime() : Date.now()) - new Date(p.startDate).getTime()) / (1000 * 60 * 60 * 24)))} วัน
+                  </span>
+                )}
+              </div>
 
               <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-800 text-xs">
                 <div>
@@ -390,25 +402,23 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    มูลค่าสัญญา (บาท)
+                    วันที่เริ่มโครงการ
                   </label>
                   <input
-                    type="number"
-                    value={contractValue}
-                    onChange={(e) => setContractValue(e.target.value)}
-                    placeholder="0.00"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    งบประมาณโครงการ (บาท)
+                    วันที่สิ้นสุดโครงการ
                   </label>
                   <input
-                    type="number"
-                    value={budget}
-                    onChange={(e) => setBudget(e.target.value)}
-                    placeholder="0.00"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
                   />
                 </div>
@@ -604,6 +614,31 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                       required
                     />
                   </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    วันที่เริ่มโครงการ
+                  </label>
+                  <input
+                    type="date"
+                    value={editStartDate}
+                    onChange={(e) => setEditStartDate(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    วันที่สิ้นสุดโครงการ
+                  </label>
+                  <input
+                    type="date"
+                    value={editEndDate}
+                    onChange={(e) => setEditEndDate(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
                 </div>
               </div>
 

@@ -200,7 +200,7 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
                   </div>
                   <div>
                     <h1 className="text-sm font-extrabold text-blue-950 uppercase leading-none">
-                      บริษัท พีพี. คอนสตรัคชั่น แอนด์ แมเนจเม้นท์ จำกัด (สำนักงานใหญ่)
+                      บริษัท พีพี. คอนสตรัคชั่น แอนด์ แมนเนจเม้นท์ จำกัด (สำนักงานใหญ่)
                     </h1>
                     <p className="text-[10px] text-slate-700 font-semibold mt-0.5">
                       PP. CONSTRUCTION AND MANAGEMENT CO., LTD. ( Head Office )
