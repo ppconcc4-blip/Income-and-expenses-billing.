@@ -21,7 +21,7 @@ provider.addScope('https://www.googleapis.com/auth/spreadsheets');
 provider.addScope('https://www.googleapis.com/auth/drive.file');
 
 let isSigningIn = false;
-let cachedAccessToken: string | null = null;
+let cachedAccessToken: string | null = localStorage.getItem('google_access_token');
 
 // Initialize Auth Listener
 export const initAuth = (
@@ -38,6 +38,7 @@ export const initAuth = (
       }
     } else {
       cachedAccessToken = null;
+      localStorage.removeItem('google_access_token');
       if (onAuthFailure) onAuthFailure();
     }
   });
@@ -54,6 +55,7 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     }
 
     cachedAccessToken = credential.accessToken;
+    localStorage.setItem('google_access_token', cachedAccessToken);
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     console.error('Google Sign-in Error:', error);
@@ -70,4 +72,5 @@ export const getAccessToken = async (): Promise<string | null> => {
 export const logoutGoogle = async () => {
   await signOut(auth);
   cachedAccessToken = null;
+  localStorage.removeItem('google_access_token');
 };
