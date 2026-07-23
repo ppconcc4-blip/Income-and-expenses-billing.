@@ -349,6 +349,9 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
                       className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
                       list="recent-income"
                     />
+                    <datalist id="recent-income">
+                      {recentSheets.income.map(id => <option key={id} value={id} />)}
+                    </datalist>
                     <input 
                       type="text" 
                       value={manualBillingUrl}
@@ -357,6 +360,9 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
                       className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
                       list="recent-billing"
                     />
+                    <datalist id="recent-billing">
+                      {recentSheets.billing.map(id => <option key={id} value={id} />)}
+                    </datalist>
                   </div>
                   <button
                     onClick={() => {
