@@ -24,6 +24,7 @@ interface BillingManagerProps {
   onDeleteBillingItem: (id: string) => void;
   onOpenMobileForm: () => void;
   onOpenPdfModal?: (item?: BillingItem) => void;
+  isAdmin?: boolean;
 }
 
 export const BillingManager: React.FC<BillingManagerProps> = ({
@@ -32,7 +33,8 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   onUpdateBillingStatus,
   onDeleteBillingItem,
   onOpenMobileForm,
-  onOpenPdfModal
+  onOpenPdfModal,
+  isAdmin
 }) => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -289,21 +291,23 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                           <FileSpreadsheet className="w-4 h-4 text-blue-400" />
                         </a>
 
-                        <button
-                          onClick={() => {
-                            if (deletingId === item.id) {
-                              onDeleteBillingItem(item.id);
-                              setDeletingId(null);
-                            } else {
-                              setDeletingId(item.id);
-                              setTimeout(() => setDeletingId(null), 3000);
-                            }
-                          }}
-                          className={`p-1.5 rounded-lg transition-colors ${deletingId === item.id ? 'bg-red-600 text-white hover:bg-red-500' : 'text-slate-500 hover:text-red-400'}`}
-                          title={deletingId === item.id ? 'คลิกอีกครั้งเพื่อยืนยัน' : 'ลบ'}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => {
+                              if (deletingId === item.id) {
+                                onDeleteBillingItem(item.id);
+                                setDeletingId(null);
+                              } else {
+                                setDeletingId(item.id);
+                                setTimeout(() => setDeletingId(null), 3000);
+                              }
+                            }}
+                            className={`p-1.5 rounded-lg transition-colors ${deletingId === item.id ? 'bg-red-600 text-white hover:bg-red-500' : 'text-slate-500 hover:text-red-400'}`}
+                            title={deletingId === item.id ? 'คลิกอีกครั้งเพื่อยืนยัน' : 'ลบ'}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
 

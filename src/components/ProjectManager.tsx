@@ -37,6 +37,7 @@ interface ProjectManagerProps {
   onUpdateProject?: (projectId: string, updates: Partial<Project>) => void;
   incomeSheetId?: string | null;
   billingSheetId?: string | null;
+  isAdmin?: boolean;
 }
 
 export const ProjectManager: React.FC<ProjectManagerProps> = ({
@@ -48,7 +49,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
   onDeleteProject,
   onUpdateProject,
   incomeSheetId,
-  billingSheetId
+  billingSheetId,
+  isAdmin
 }) => {
   const [code, setCode] = useState<string>(`PP-2026-0${projects.length + 1}`);
   const [name, setName] = useState<string>('');
@@ -196,7 +198,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                 </div>
 
                 <div className="flex items-center space-x-1">
-                  {onUpdateProject && (
+                  {isAdmin && onUpdateProject && (
                     <button
                       onClick={() => setProjectToEdit(p)}
                       className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-colors"
@@ -205,7 +207,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                       <Edit3 className="w-4 h-4" />
                     </button>
                   )}
-                  {onDeleteProject && (
+                  {isAdmin && onDeleteProject && (
                     <button
                       onClick={() => setProjectToDelete(p.id)}
                       className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors"

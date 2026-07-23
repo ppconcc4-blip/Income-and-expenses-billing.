@@ -212,6 +212,7 @@ export default function App() {
           
           if (globalSnap.exists()) {
             data = globalSnap.data();
+            console.log("Global config loaded:", data);
           } else {
             // Migration from user config
             const configDoc = doc(db, 'users', googleUser.uid, 'config', 'sheets');
@@ -256,6 +257,16 @@ export default function App() {
       setIsLoadingConfig(false);
     }
   }, [googleUser, isAdmin]);
+
+  // Auto-Pull Data once config is loaded and token is available
+  const [hasAutoPulled, setHasAutoPulled] = useState(false);
+  useEffect(() => {
+    if (!isLoadingConfig && (incomeSheetId || billingSheetId) && googleAccessToken && !hasAutoPulled) {
+      console.log("Auto-pulling data from Google Sheets...");
+      setHasAutoPulled(true);
+      handlePullDataFromGoogleSheets(true); // Silent pull on load
+    }
+  }, [isLoadingConfig, incomeSheetId, billingSheetId, googleAccessToken, hasAutoPulled]);
 
   // Category Management Handlers
   const handleAddCategory = (type: 'income' | 'expense', name: string) => {
@@ -330,14 +341,14 @@ export default function App() {
   const overdueCount = activeBillingItems.filter(b => b.status === 'overdue').length;
 
   // Sync / Pull Data from Google Sheets Handler
-  const handlePullDataFromGoogleSheets = async () => {
+  const handlePullDataFromGoogleSheets = async (silent = false) => {
     let token = googleAccessToken;
     if (!token) {
-      await handleGoogleSignIn();
+      if (!silent) await handleGoogleSignIn();
       token = localStorage.getItem('google_access_token');
     }
     if (!token) {
-      alert('กรุณาเข้าสู่ระบบด้วย Google เพื่อดึงข้อมูลจาก Google Sheets');
+      if (!silent) alert('กรุณาเข้าสู่ระบบด้วย Google เพื่อดึงข้อมูลจาก Google Sheets');
       return;
     }
 
@@ -345,7 +356,7 @@ export default function App() {
     const targetBillingId = billingSheetId || localStorage.getItem('pp_billing_sheet_id');
 
     if (!targetIncomeId && !targetBillingId) {
-      alert('ยังไม่มีการเชื่อมต่อกับ Google Sheet กรุณากด "เปิดดูตัวอย่างชีต" หรือเลือกเชื่อมต่อ Google Sheets ก่อน');
+      if (!silent) alert('ยังไม่มีการเชื่อมต่อกับ Google Sheet กรุณากด "เปิดดูตัวอย่างชีต" หรือเลือกเชื่อมต่อ Google Sheets ก่อน');
       return;
     }
 
@@ -361,9 +372,9 @@ export default function App() {
       if (res.billingItems && res.billingItems.length > 0) {
         setBillingItems(res.billingItems);
       }
-      alert(res.message);
+      if (!silent) alert(res.message);
     } else {
-      alert(res.message || 'ไม่สามารถดึงข้อมูลจาก Google Sheets ได้');
+      if (!silent) alert(res.message || 'ไม่สามารถดึงข้อมูลจาก Google Sheets ได้');
     }
   };
 
@@ -384,6 +395,10 @@ export default function App() {
   const handleAddTransaction = (newTxData: Omit<Transaction, 'id' | 'createdAt'>) => {
     if (!googleUser) {
       setToastMessage('กรุณาเข้าสู่ระบบก่อนบันทึกรายการ');
+      return;
+    }
+    if (!isAdmin) {
+      setToastMessage('ขออภัย เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถบันทึกข้อมูลได้');
       return;
     }
     const newTx: Transaction = {
@@ -414,6 +429,10 @@ export default function App() {
       setToastMessage('กรุณาเข้าสู่ระบบก่อนบันทึกใบวางบิล');
       return;
     }
+    if (!isAdmin) {
+      setToastMessage('ขออภัย เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถบันทึกข้อมูลได้');
+      return;
+    }
     const newBilling: BillingItem = {
       ...newBillingData,
       id: `bill-${Date.now()}`,
@@ -439,6 +458,10 @@ export default function App() {
 
   // Update Billing Status Handler
   const handleUpdateBillingStatus = (id: string, newStatus: BillingStatus, newPaidDate?: string) => {
+    if (!isAdmin) {
+      setToastMessage('ขออภัย เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถอัปเดตสถานะได้');
+      return;
+    }
     let updatedItem: BillingItem | null = null;
     
     setBillingItems(prev => prev.map(item => {
@@ -480,6 +503,10 @@ export default function App() {
 
   // Delete Handlers
   const handleDeleteTransaction = (id: string) => {
+    if (!isAdmin) {
+      setToastMessage('ขออภัย เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบรายการได้');
+      return;
+    }
     const txToDelete = transactions.find(t => t.id === id);
     setTransactions(prev => prev.filter(t => t.id !== id));
     
@@ -495,6 +522,10 @@ export default function App() {
   };
 
   const handleDeleteBillingItem = (id: string) => {
+    if (!isAdmin) {
+      setToastMessage('ขออภัย เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบรายการได้');
+      return;
+    }
     const billingToDelete = billingItems.find(b => b.id === id);
     setBillingItems(prev => prev.filter(b => b.id !== id));
     
@@ -510,6 +541,10 @@ export default function App() {
   };
 
   const handleDeleteProject = async (projectId: string) => {
+    if (!isAdmin) {
+      setToastMessage('ขออภัย เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบโครงการได้');
+      return;
+    }
     if (projects.length <= 1) {
       alert('ไม่สามารถลบโครงการได้ ต้องมีอย่างน้อย 1 โครงการในระบบ');
       return;
