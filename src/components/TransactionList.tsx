@@ -104,6 +104,14 @@ export const TransactionList: React.FC<TransactionListProps> = ({
           </button>
 
           <button
+            onClick={onOpenPdfModal}
+            className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-md"
+          >
+            <Printer className="w-4 h-4" />
+            <span>พิมพ์ PDF / สรุปบัญชี</span>
+          </button>
+
+          <button
             onClick={onOpenMobileForm}
             className="flex items-center space-x-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-md"
           >

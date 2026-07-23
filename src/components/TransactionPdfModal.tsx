@@ -20,8 +20,6 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedType, setSelectedType] = useState<'all' | 'income' | 'expense'>('all');
 
-  if (!isOpen) return null;
-
   // Get unique months for filter
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
@@ -68,6 +66,8 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
       return { ...tx, runningBalance };
     });
   }, [filteredAndSortedTransactions]);
+
+  if (!isOpen) return null;
 
   // Calculations for summary totals
   const totalIncome = filteredAndSortedTransactions

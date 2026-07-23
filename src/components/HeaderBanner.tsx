@@ -10,7 +10,8 @@ import {
   LogOut,
   UserCheck,
   Tag,
-  RefreshCw
+  RefreshCw,
+  Printer
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { DEFAULT_SHEET_INCOME, DEFAULT_SHEET_BILLING } from '../data/mockData';
@@ -28,6 +29,7 @@ interface HeaderBannerProps {
   incomeSheetId?: string | null;
   billingSheetId?: string | null;
   onPullFromSheets?: () => Promise<void>;
+  onOpenTxPdfModal?: () => void;
   isAdmin?: boolean;
   lastPulledAt?: string | null;
 }
@@ -44,6 +46,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
   incomeSheetId,
   billingSheetId,
   onPullFromSheets,
+  onOpenTxPdfModal,
   isAdmin,
   lastPulledAt
 }) => {
@@ -165,10 +168,22 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
                   <span className="md:hidden">Sync</span>
                 </button>
               )}
+
+            {onOpenTxPdfModal && (
+              <button
+                onClick={onOpenTxPdfModal}
+                className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-lg transition-all shadow-md active:scale-95"
+                title="พิมพ์สมุดรายรับ-รายจ่าย (PDF)"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">พิมพ์รายรับ-รายจ่าย</span>
+                <span className="md:hidden">Print</span>
+              </button>
+            )}
             </div>
 
             {/* Manage Categories Button */}
-            {onOpenCategoryManager && isAdmin && (
+            {onOpenCategoryManager && (
               <button
                 onClick={onOpenCategoryManager}
                 className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-xs font-semibold px-3 py-2 rounded-xl transition-all"

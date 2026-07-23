@@ -623,6 +623,7 @@ export default function App() {
         incomeSheetId={incomeSheetId}
         billingSheetId={billingSheetId}
         onPullFromSheets={handlePullDataFromGoogleSheets}
+        onOpenTxPdfModal={() => setIsTxPdfModalOpen(true)}
       />
 
       {/* 2. Primary Navigation Bar */}
@@ -712,7 +713,7 @@ export default function App() {
         
         {activeTab === 'dashboard' && (
           <>
-            {!isLoadingConfig && isAdmin && (
+            {!isLoadingConfig && (
               <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 text-center shadow-lg mb-6">
                 <FileSpreadsheet className={`w-12 h-12 mx-auto mb-4 ${incomeSheetId && billingSheetId ? 'text-emerald-500' : 'text-amber-500'}`} />
                 <h3 className="text-xl font-bold text-white mb-2">
@@ -781,17 +782,15 @@ export default function App() {
       </main>
 
       {/* Mobile Floating Action Button (FAB) */}
-      {isAdmin && (
-        <div className="fixed bottom-5 right-5 sm:hidden z-40">
-          <button
-            onClick={() => { setMobileFormInitialTab('expense'); setIsMobileFormOpen(true); }}
-            className="bg-amber-400 hover:bg-amber-300 text-slate-950 p-4 rounded-full shadow-2xl shadow-amber-400/40 border-2 border-slate-950 flex items-center justify-center active:scale-90 transition-transform"
-            title="บันทึกรายการใหม่"
-          >
-            <Smartphone className="w-6 h-6" />
-          </button>
-        </div>
-      )}
+      <div className="fixed bottom-5 right-5 sm:hidden z-40">
+        <button
+          onClick={() => { setMobileFormInitialTab('expense'); setIsMobileFormOpen(true); }}
+          className="bg-amber-400 hover:bg-amber-300 text-slate-950 p-4 rounded-full shadow-2xl shadow-amber-400/40 border-2 border-slate-950 flex items-center justify-center active:scale-90 transition-transform"
+          title="บันทึกรายการใหม่"
+        >
+          <Smartphone className="w-6 h-6" />
+        </button>
+      </div>
 
       {/* Modals */}
       <MobileQuickForm
