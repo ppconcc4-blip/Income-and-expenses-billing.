@@ -17,6 +17,7 @@ import {
 import { Project, Transaction } from '../types';
 
 interface TransactionListProps {
+  isAdmin?: boolean;
   transactions: Transaction[];
   projects: Project[];
   onDeleteTransaction: (id: string) => void;
@@ -29,7 +30,8 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   projects,
   onDeleteTransaction,
   onOpenMobileForm,
-  onOpenPdfModal
+  onOpenPdfModal,
+  isAdmin
 }) => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedType, setSelectedType] = useState<'all' | 'income' | 'expense'>('all');
@@ -101,13 +103,15 @@ export const TransactionList: React.FC<TransactionListProps> = ({
             <span>ส่งออก CSV</span>
           </button>
 
-          <button
-            onClick={onOpenMobileForm}
-            className="flex items-center space-x-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-md"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ เพิ่มรายการ</span>
-          </button>
+          {isAdmin && (
+            <button
+              onClick={onOpenMobileForm}
+              className="flex items-center space-x-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-md"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ เพิ่มรายการ</span>
+            </button>
+          )}
         </div>
       </div>
 

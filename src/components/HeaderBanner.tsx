@@ -28,6 +28,7 @@ interface HeaderBannerProps {
   incomeSheetId?: string | null;
   billingSheetId?: string | null;
   onPullFromSheets?: () => Promise<void>;
+  isAdmin?: boolean;
 }
 
 export const HeaderBanner: React.FC<HeaderBannerProps> = ({
@@ -41,7 +42,8 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
   isLoggingIn,
   incomeSheetId,
   billingSheetId,
-  onPullFromSheets
+  onPullFromSheets,
+  isAdmin
 }) => {
   const [isPulling, setIsPulling] = useState<boolean>(false);
   return (
@@ -164,7 +166,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
             </div>
 
             {/* Manage Categories Button */}
-            {onOpenCategoryManager && (
+            {onOpenCategoryManager && isAdmin && (
               <button
                 onClick={onOpenCategoryManager}
                 className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-xs font-semibold px-3 py-2 rounded-xl transition-all"
@@ -176,22 +178,26 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
             )}
 
             {/* Add Project Button */}
-            <button
-              onClick={onOpenNewProject}
-              className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-xs font-semibold px-3 py-2 rounded-xl transition-all"
-            >
-              <PlusCircle className="w-4 h-4 text-amber-400" />
-              <span>เพิ่มโครงการใหม่</span>
-            </button>
+            {isAdmin && (
+              <button
+                onClick={onOpenNewProject}
+                className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-xs font-semibold px-3 py-2 rounded-xl transition-all"
+              >
+                <PlusCircle className="w-4 h-4 text-amber-400" />
+                <span>เพิ่มโครงการใหม่</span>
+              </button>
+            )}
 
             {/* Easy Mobile Form Launcher */}
-            <button
-              onClick={onOpenMobileForm}
-              className="flex items-center space-x-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs sm:text-sm px-4 py-2 rounded-xl shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
-            >
-              <Smartphone className="w-4 h-4" />
-              <span>+ บันทึกรายการใหม่</span>
-            </button>
+            {isAdmin && (
+              <button
+                onClick={onOpenMobileForm}
+                className="flex items-center space-x-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs sm:text-sm px-4 py-2 rounded-xl shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
+              >
+                <Smartphone className="w-4 h-4" />
+                <span>+ บันทึกรายการใหม่</span>
+              </button>
+            )}
 
           </div>
         </div>

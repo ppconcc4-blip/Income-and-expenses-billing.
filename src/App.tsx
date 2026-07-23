@@ -145,6 +145,8 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(true);
 
+  const isAdmin = googleUser?.email === 'ppconcc4@gmail.com';
+
   // Auto-clear toast
   useEffect(() => {
     if (toastMessage) {
@@ -168,35 +170,35 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('pp_expense_categories', JSON.stringify(expenseCategories));
-    if (googleUser) {
-      setDoc(doc(db, 'users', googleUser.uid, 'config', 'categories'), { expenseCategories }, { merge: true });
+    if (isAdmin) {
+      setDoc(doc(db, 'global', 'config'), { expenseCategories }, { merge: true });
     }
-  }, [expenseCategories, googleUser]);
+  }, [expenseCategories, isAdmin]);
 
   useEffect(() => {
     localStorage.setItem('pp_income_categories', JSON.stringify(incomeCategories));
-    if (googleUser) {
-      setDoc(doc(db, 'users', googleUser.uid, 'config', 'categories'), { incomeCategories }, { merge: true });
+    if (isAdmin) {
+      setDoc(doc(db, 'global', 'config'), { incomeCategories }, { merge: true });
     }
-  }, [incomeCategories, googleUser]);
+  }, [incomeCategories, isAdmin]);
 
   useEffect(() => {
     if (incomeSheetId) {
       localStorage.setItem('pp_income_sheet_id', incomeSheetId);
-      if (googleUser) {
-        setDoc(doc(db, 'users', googleUser.uid, 'config', 'sheets'), { incomeSheetId }, { merge: true });
+      if (isAdmin) {
+        setDoc(doc(db, 'global', 'config'), { incomeSheetId }, { merge: true });
       }
     }
-  }, [incomeSheetId, googleUser]);
+  }, [incomeSheetId, isAdmin]);
 
   useEffect(() => {
     if (billingSheetId) {
       localStorage.setItem('pp_billing_sheet_id', billingSheetId);
-      if (googleUser) {
-        setDoc(doc(db, 'users', googleUser.uid, 'config', 'sheets'), { billingSheetId }, { merge: true });
+      if (isAdmin) {
+        setDoc(doc(db, 'global', 'config'), { billingSheetId }, { merge: true });
       }
     }
-  }, [billingSheetId, googleUser]);
+  }, [billingSheetId, isAdmin]);
 
   // Load User Configuration from Firestore
   useEffect(() => {
@@ -204,35 +206,44 @@ export default function App() {
       const loadConfig = async () => {
         setIsLoadingConfig(true);
         try {
-          const configDoc = doc(db, 'users', googleUser.uid, 'config', 'sheets');
-          const catDoc = doc(db, 'users', googleUser.uid, 'config', 'categories');
-          const [docSnap, catSnap] = await Promise.all([getDoc(configDoc), getDoc(catDoc)]);
+          let data: any = {};
+          const globalConfigDoc = doc(db, 'global', 'config');
+          const globalSnap = await getDoc(globalConfigDoc);
           
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            if (data.incomeSheetId) {
-              setIncomeSheetId(data.incomeSheetId);
-              localStorage.setItem('pp_income_sheet_id', data.incomeSheetId);
+          if (globalSnap.exists()) {
+            data = globalSnap.data();
+          } else {
+            // Migration from user config
+            const configDoc = doc(db, 'users', googleUser.uid, 'config', 'sheets');
+            const catDoc = doc(db, 'users', googleUser.uid, 'config', 'categories');
+            const [docSnap, catSnap] = await Promise.all([getDoc(configDoc), getDoc(catDoc)]);
+            if (docSnap.exists()) {
+              data = { ...data, ...docSnap.data() };
             }
-            if (data.billingSheetId) {
-              setBillingSheetId(data.billingSheetId);
-              localStorage.setItem('pp_billing_sheet_id', data.billingSheetId);
+            if (catSnap.exists()) {
+              data = { ...data, ...catSnap.data() };
+            }
+            if (isAdmin && Object.keys(data).length > 0) {
+              await setDoc(globalConfigDoc, data, { merge: true });
             }
           }
           
-          if (catSnap.exists()) {
-            const data = catSnap.data();
-            console.log("Categories data loaded:", data);
-            if (data.expenseCategories) {
-              setExpenseCategories(data.expenseCategories);
-              localStorage.setItem('pp_expense_categories', JSON.stringify(data.expenseCategories));
-            }
-            if (data.incomeCategories) {
-              setIncomeCategories(data.incomeCategories);
-              localStorage.setItem('pp_income_categories', JSON.stringify(data.incomeCategories));
-            }
-          } else {
-            console.log("No categories document found in Firestore.");
+          if (data.incomeSheetId) {
+            setIncomeSheetId(data.incomeSheetId);
+            localStorage.setItem('pp_income_sheet_id', data.incomeSheetId);
+          }
+          if (data.billingSheetId) {
+            setBillingSheetId(data.billingSheetId);
+            localStorage.setItem('pp_billing_sheet_id', data.billingSheetId);
+          }
+          
+          if (data.expenseCategories) {
+            setExpenseCategories(data.expenseCategories);
+            localStorage.setItem('pp_expense_categories', JSON.stringify(data.expenseCategories));
+          }
+          if (data.incomeCategories) {
+            setIncomeCategories(data.incomeCategories);
+            localStorage.setItem('pp_income_categories', JSON.stringify(data.incomeCategories));
           }
         } catch (e) {
           console.error("Error loading config from Firestore", e);
@@ -244,7 +255,7 @@ export default function App() {
     } else {
       setIsLoadingConfig(false);
     }
-  }, [googleUser]);
+  }, [googleUser, isAdmin]);
 
   // Category Management Handlers
   const handleAddCategory = (type: 'income' | 'expense', name: string) => {
@@ -592,6 +603,7 @@ export default function App() {
         onOpenCategoryManager={() => setIsCategoryManagerOpen(true)}
         overdueCount={overdueCount}
         googleUser={googleUser}
+        isAdmin={isAdmin}
         onGoogleSignIn={handleGoogleSignIn}
         onGoogleSignOut={handleGoogleSignOut}
         incomeSheetId={incomeSheetId}
@@ -686,7 +698,7 @@ export default function App() {
         
         {activeTab === 'dashboard' && (
           <>
-            {!isLoadingConfig && (
+            {!isLoadingConfig && isAdmin && (
               <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 text-center shadow-lg mb-6">
                 <FileSpreadsheet className={`w-12 h-12 mx-auto mb-4 ${incomeSheetId && billingSheetId ? 'text-emerald-500' : 'text-amber-500'}`} />
                 <h3 className="text-xl font-bold text-white mb-2">
@@ -718,6 +730,7 @@ export default function App() {
             onDeleteTransaction={handleDeleteTransaction}
             onOpenMobileForm={() => { setMobileFormInitialTab('expense'); setIsMobileFormOpen(true); }}
             onOpenPdfModal={() => setIsTxPdfModalOpen(true)}
+            isAdmin={isAdmin}
           />
         )}
 
@@ -732,6 +745,7 @@ export default function App() {
               setSelectedBillingForPdf(item || null);
               setIsPdfModalOpen(true);
             }}
+            isAdmin={isAdmin}
           />
         )}
 
@@ -746,21 +760,24 @@ export default function App() {
             onUpdateProject={handleUpdateProject}
             incomeSheetId={incomeSheetId}
             billingSheetId={billingSheetId}
+            isAdmin={isAdmin}
           />
         )}
 
       </main>
 
       {/* Mobile Floating Action Button (FAB) */}
-      <div className="fixed bottom-5 right-5 sm:hidden z-40">
-        <button
-          onClick={() => { setMobileFormInitialTab('expense'); setIsMobileFormOpen(true); }}
-          className="bg-amber-400 hover:bg-amber-300 text-slate-950 p-4 rounded-full shadow-2xl shadow-amber-400/40 border-2 border-slate-950 flex items-center justify-center active:scale-90 transition-transform"
-          title="บันทึกรายการใหม่"
-        >
-          <Smartphone className="w-6 h-6" />
-        </button>
-      </div>
+      {isAdmin && (
+        <div className="fixed bottom-5 right-5 sm:hidden z-40">
+          <button
+            onClick={() => { setMobileFormInitialTab('expense'); setIsMobileFormOpen(true); }}
+            className="bg-amber-400 hover:bg-amber-300 text-slate-950 p-4 rounded-full shadow-2xl shadow-amber-400/40 border-2 border-slate-950 flex items-center justify-center active:scale-90 transition-transform"
+            title="บันทึกรายการใหม่"
+          >
+            <Smartphone className="w-6 h-6" />
+          </button>
+        </div>
+      )}
 
       {/* Modals */}
       <MobileQuickForm
@@ -774,6 +791,7 @@ export default function App() {
         onAddTransaction={handleAddTransaction}
         onAddBilling={handleAddBilling}
         googleAccessToken={googleAccessToken}
+        isAdmin={isAdmin}
       />
 
       <CategoryManagerModal
@@ -785,6 +803,7 @@ export default function App() {
         onEditCategory={handleEditCategory}
         onDeleteCategory={handleDeleteCategory}
         onResetDefaults={handleResetCategories}
+        isAdmin={isAdmin}
       />
 
       <GoogleSheetModal
