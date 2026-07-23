@@ -146,7 +146,7 @@ export default function App() {
   const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(true);
   const [lastPulledAt, setLastPulledAt] = useState<string | null>(null);
 
-  const isAdmin = googleUser?.email === 'ppconcc4@gmail.com';
+  const isAdmin = googleUser?.email?.trim().toLowerCase() === 'ppconcc4@gmail.com';
 
   // Auto-clear toast
   useEffect(() => {

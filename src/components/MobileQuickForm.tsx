@@ -33,6 +33,7 @@ interface MobileQuickFormProps {
   onAddTransaction: (tx: Omit<Transaction, 'id' | 'createdAt'>) => void;
   onAddBilling: (billing: Omit<BillingItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
   googleAccessToken?: string | null;
+  isAdmin?: boolean;
 }
 
 const DEFAULT_EXPENSE_CATS = [
@@ -63,7 +64,8 @@ export const MobileQuickForm: React.FC<MobileQuickFormProps> = ({
   onOpenCategoryManager,
   onAddTransaction,
   onAddBilling,
-  googleAccessToken
+  googleAccessToken,
+  isAdmin
 }) => {
   const [formType, setFormType] = useState<'income' | 'expense' | 'billing'>(initialTab);
   
