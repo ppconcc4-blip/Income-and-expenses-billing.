@@ -10,6 +10,11 @@ import {
   Plus
 } from 'lucide-react';
 import { 
+  doc, 
+  getDoc, 
+  setDoc 
+} from 'firebase/firestore';
+import { 
   Project, 
   Transaction, 
   BillingItem, 
@@ -32,7 +37,7 @@ import { GoogleSheetModal } from './components/GoogleSheetModal';
 import { CategoryManagerModal } from './components/CategoryManagerModal';
 import { BillingPdfModal } from './components/BillingPdfModal';
 import { TransactionPdfModal } from './components/TransactionPdfModal';
-import { initAuth, googleSignIn, logoutGoogle, getAccessToken } from './lib/firebase';
+import { initAuth, googleSignIn, logoutGoogle, getAccessToken, db } from './lib/firebase';
 import { 
   autoSyncTransactionToSheet, 
   autoSyncBillingToSheet, 
@@ -160,12 +165,48 @@ export default function App() {
   }, [incomeCategories]);
 
   useEffect(() => {
-    if (incomeSheetId) localStorage.setItem('pp_income_sheet_id', incomeSheetId);
-  }, [incomeSheetId]);
+    if (incomeSheetId) {
+      localStorage.setItem('pp_income_sheet_id', incomeSheetId);
+      if (googleUser) {
+        setDoc(doc(db, 'users', googleUser.uid, 'config', 'sheets'), { incomeSheetId }, { merge: true });
+      }
+    }
+  }, [incomeSheetId, googleUser]);
 
   useEffect(() => {
-    if (billingSheetId) localStorage.setItem('pp_billing_sheet_id', billingSheetId);
-  }, [billingSheetId]);
+    if (billingSheetId) {
+      localStorage.setItem('pp_billing_sheet_id', billingSheetId);
+      if (googleUser) {
+        setDoc(doc(db, 'users', googleUser.uid, 'config', 'sheets'), { billingSheetId }, { merge: true });
+      }
+    }
+  }, [billingSheetId, googleUser]);
+
+  // Load User Configuration from Firestore
+  useEffect(() => {
+    if (googleUser) {
+      const loadConfig = async () => {
+        try {
+          const configDoc = doc(db, 'users', googleUser.uid, 'config', 'sheets');
+          const docSnap = await getDoc(configDoc);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.incomeSheetId) {
+              setIncomeSheetId(data.incomeSheetId);
+              localStorage.setItem('pp_income_sheet_id', data.incomeSheetId);
+            }
+            if (data.billingSheetId) {
+              setBillingSheetId(data.billingSheetId);
+              localStorage.setItem('pp_billing_sheet_id', data.billingSheetId);
+            }
+          }
+        } catch (e) {
+          console.error("Error loading config from Firestore", e);
+        }
+      };
+      loadConfig();
+    }
+  }, [googleUser]);
 
   // Category Management Handlers
   const handleAddCategory = (type: 'income' | 'expense', name: string) => {

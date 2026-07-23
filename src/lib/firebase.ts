@@ -7,11 +7,13 @@ import {
   User, 
   signOut 
 } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase App if not already initialized
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 export const auth = getAuth(app);
+export const db = getFirestore(app);
 
 const provider = new GoogleAuthProvider();
 // Request Google Workspace Scopes
