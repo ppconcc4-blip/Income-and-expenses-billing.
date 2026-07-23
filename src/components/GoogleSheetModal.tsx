@@ -69,7 +69,9 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
       income: savedIncome ? JSON.parse(savedIncome) : (incomeSheetId ? [incomeSheetId] : []),
       billing: savedBilling ? JSON.parse(savedBilling) : (billingSheetId ? [billingSheetId] : [])
     });
-  }, [incomeSheetId, billingSheetId]);
+    setManualIncomeUrl(incomeSheetId || '');
+    setManualBillingUrl(billingSheetId || '');
+  }, [isOpen, incomeSheetId, billingSheetId]);
 
   if (!isOpen) return null;
 
