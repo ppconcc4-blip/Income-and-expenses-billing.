@@ -656,11 +656,26 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
         
         {activeTab === 'dashboard' && (
-          <MonthlyDashboard
-            projects={activeProjects}
-            transactions={activeTransactions}
-            billingItems={activeBillingItems}
-          />
+          <>
+            {!incomeSheetId && !billingSheetId && (
+              <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 text-center shadow-lg">
+                <FileSpreadsheet className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-white mb-2">ยังไม่ได้เชื่อมต่อ Google Sheets</h3>
+                <p className="text-slate-400 mb-6">เชื่อมต่อกับ Google Sheets เพื่อเริ่มการบันทึกข้อมูลและใช้งานระบบเต็มรูปแบบ</p>
+                <button
+                  onClick={() => setIsSheetViewerOpen(true)}
+                  className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-2.5 px-6 rounded-xl transition-all"
+                >
+                  เชื่อมต่อ Google Sheets ตอนนี้
+                </button>
+              </div>
+            )}
+            <MonthlyDashboard
+              projects={activeProjects}
+              transactions={activeTransactions}
+              billingItems={activeBillingItems}
+            />
+          </>
         )}
 
         {activeTab === 'transactions' && (
