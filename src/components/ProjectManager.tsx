@@ -166,7 +166,13 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
 
         <button
           onClick={onOpenModal}
-          className="flex items-center space-x-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-lg shrink-0"
+          disabled={!isAdmin}
+          className={`flex items-center space-x-1.5 font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-lg shrink-0 ${
+            isAdmin 
+              ? "bg-amber-500 hover:bg-amber-400 text-slate-950" 
+              : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+          }`}
+          title={isAdmin ? "เพิ่มโครงการใหม่ (เพิ่มชีต)" : "เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถเพิ่มโครงการได้"}
         >
           <Plus className="w-4 h-4" />
           <span>+ เพิ่มโครงการใหม่ (เพิ่มชีต)</span>

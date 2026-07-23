@@ -84,13 +84,15 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
             </button>
           )}
 
-          <button
-            onClick={onOpenMobileForm}
-            className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-md"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ ออกใบวางบิลใหม่</span>
-          </button>
+          {isAdmin && (
+            <button
+              onClick={onOpenMobileForm}
+              className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-md"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ ออกใบวางบิลใหม่</span>
+            </button>
+          )}
         </div>
       </div>
 
