@@ -54,12 +54,22 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
   const [isPulling, setIsPulling] = useState<boolean>(false);
   const [manualIncomeUrl, setManualIncomeUrl] = useState<string>('');
   const [manualBillingUrl, setManualBillingUrl] = useState<string>('');
+  const [recentSheets, setRecentSheets] = useState<{income: string[], billing: string[]}>({income: [], billing: []});
   const [createMsg, setCreateMsg] = useState<{ 
     success: boolean; 
     msg: string; 
     incomeUrl?: string; 
     billingUrl?: string; 
   } | null>(null);
+
+  React.useEffect(() => {
+    const savedIncome = localStorage.getItem('pp_recent_income_sheets');
+    const savedBilling = localStorage.getItem('pp_recent_billing_sheets');
+    setRecentSheets({
+      income: savedIncome ? JSON.parse(savedIncome) : (incomeSheetId ? [incomeSheetId] : []),
+      billing: savedBilling ? JSON.parse(savedBilling) : (billingSheetId ? [billingSheetId] : [])
+    });
+  }, [incomeSheetId, billingSheetId]);
 
   if (!isOpen) return null;
 
@@ -261,18 +271,42 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
                       onChange={(e) => setManualIncomeUrl(e.target.value)}
                       placeholder="ลิงก์ Sheet รายรับ-รายจ่าย..."
                       className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-[11px]"
+                      list="recent-income"
                     />
+                    <datalist id="recent-income">
+                      {recentSheets.income.map(id => <option key={id} value={id} />)}
+                    </datalist>
                     <input 
                       type="text" 
                       value={manualBillingUrl}
                       onChange={(e) => setManualBillingUrl(e.target.value)}
                       placeholder="ลิงก์ Sheet การวางบิล..."
                       className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-[11px]"
+                      list="recent-billing"
                     />
+                    <datalist id="recent-billing">
+                      {recentSheets.billing.map(id => <option key={id} value={id} />)}
+                    </datalist>
                     <button
                       onClick={() => {
                         if (onUpdateSheetIds && (manualIncomeUrl || manualBillingUrl)) {
                           onUpdateSheetIds(manualIncomeUrl, manualBillingUrl);
+                          if (manualIncomeUrl) {
+                            const key = 'pp_recent_income_sheets';
+                            const saved = localStorage.getItem(key);
+                            const list: string[] = saved ? JSON.parse(saved) : [];
+                            if (!list.includes(manualIncomeUrl)) {
+                              localStorage.setItem(key, JSON.stringify([manualIncomeUrl, ...list].slice(0, 5)));
+                            }
+                          }
+                          if (manualBillingUrl) {
+                            const key = 'pp_recent_billing_sheets';
+                            const saved = localStorage.getItem(key);
+                            const list: string[] = saved ? JSON.parse(saved) : [];
+                            if (!list.includes(manualBillingUrl)) {
+                              localStorage.setItem(key, JSON.stringify([manualBillingUrl, ...list].slice(0, 5)));
+                            }
+                          }
                           setCreateMsg({ success: true, msg: 'อัปเดตลิงก์ Google Sheet สำเร็จแล้ว!' });
                         }
                       }}
@@ -311,6 +345,7 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
                       onChange={(e) => setManualIncomeUrl(e.target.value)}
                       placeholder="วางลิงก์ Sheet รายรับ-รายจ่าย..."
                       className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                      list="recent-income"
                     />
                     <input 
                       type="text" 
@@ -318,12 +353,29 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
                       onChange={(e) => setManualBillingUrl(e.target.value)}
                       placeholder="วางลิงก์ Sheet การวางบิล..."
                       className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                      list="recent-billing"
                     />
                   </div>
                   <button
                     onClick={() => {
                       if (onUpdateSheetIds && (manualIncomeUrl || manualBillingUrl)) {
                         onUpdateSheetIds(manualIncomeUrl, manualBillingUrl);
+                        if (manualIncomeUrl) {
+                            const key = 'pp_recent_income_sheets';
+                            const saved = localStorage.getItem(key);
+                            const list: string[] = saved ? JSON.parse(saved) : [];
+                            if (!list.includes(manualIncomeUrl)) {
+                              localStorage.setItem(key, JSON.stringify([manualIncomeUrl, ...list].slice(0, 5)));
+                            }
+                          }
+                          if (manualBillingUrl) {
+                            const key = 'pp_recent_billing_sheets';
+                            const saved = localStorage.getItem(key);
+                            const list: string[] = saved ? JSON.parse(saved) : [];
+                            if (!list.includes(manualBillingUrl)) {
+                              localStorage.setItem(key, JSON.stringify([manualBillingUrl, ...list].slice(0, 5)));
+                            }
+                          }
                         setCreateMsg({ success: true, msg: 'เชื่อมต่อ Google Sheet เดิมสำเร็จแล้ว!' });
                       }
                     }}

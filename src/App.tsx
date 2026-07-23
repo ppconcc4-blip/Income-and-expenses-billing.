@@ -142,6 +142,15 @@ export default function App() {
   const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
   const [isTxPdfModalOpen, setIsTxPdfModalOpen] = useState<boolean>(false);
   const [selectedBillingForPdf, setSelectedBillingForPdf] = useState<BillingItem | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Auto-clear toast
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
 
   // Sync to LocalStorage
   useEffect(() => {
@@ -333,6 +342,10 @@ export default function App() {
 
   // Add Transaction Handler with Auto-Sync
   const handleAddTransaction = (newTxData: Omit<Transaction, 'id' | 'createdAt'>) => {
+    if (!googleUser) {
+      setToastMessage('กรุณาเข้าสู่ระบบก่อนบันทึกรายการ');
+      return;
+    }
     const newTx: Transaction = {
       ...newTxData,
       id: `tx-${Date.now()}`,
@@ -357,6 +370,10 @@ export default function App() {
 
   // Add Billing Item Handler with Auto-Sync
   const handleAddBilling = (newBillingData: Omit<BillingItem, 'id' | 'createdAt' | 'updatedAt'>) => {
+    if (!googleUser) {
+      setToastMessage('กรุณาเข้าสู่ระบบก่อนบันทึกใบวางบิล');
+      return;
+    }
     const newBilling: BillingItem = {
       ...newBillingData,
       id: `bill-${Date.now()}`,
@@ -485,6 +502,10 @@ export default function App() {
 
   // Add Project Handler
   const handleAddProject = (newProjData: Omit<Project, 'id'>) => {
+    if (!googleUser) {
+      setToastMessage('กรุณาเข้าสู่ระบบก่อนเพิ่มโครงการ');
+      return;
+    }
     const newProj: Project = {
       ...newProjData,
       id: `proj-${Date.now()}`
@@ -528,6 +549,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-amber-500 selection:text-slate-950 flex flex-col">
+      
+      {toastMessage && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[60] bg-red-600 text-white px-6 py-3 rounded-full shadow-2xl font-bold flex items-center space-x-2 animate-in fade-in slide-in-from-top-2">
+          <span>{toastMessage}</span>
+        </div>
+      )}
       
       {/* 1. Top Header Banner with Company Logo */}
       <HeaderBanner
