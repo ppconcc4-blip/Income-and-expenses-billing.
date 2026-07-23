@@ -84,15 +84,13 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
             </button>
           )}
 
-          {isAdmin && (
-            <button
-              onClick={onOpenMobileForm}
-              className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-md"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ ออกใบวางบิลใหม่</span>
-            </button>
-          )}
+          <button
+            onClick={onOpenMobileForm}
+            className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-md"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ ออกใบวางบิลใหม่</span>
+          </button>
         </div>
       </div>
 
@@ -249,8 +247,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                           <select
                             value={item.status}
                             onChange={(e) => onUpdateBillingStatus(item.id, e.target.value as BillingStatus)}
-                            disabled={!isAdmin}
-                            className={`bg-slate-950 border border-slate-700 text-xs text-white rounded-lg px-2 py-1 focus:outline-none focus:border-blue-500 ${!isAdmin ? 'opacity-70 cursor-not-allowed' : ''}`}
+                            className="bg-slate-950 border border-slate-700 text-xs text-white rounded-lg px-2 py-1 focus:outline-none focus:border-blue-500"
                           >
                             <option value="pending">รอวางบิล</option>
                             <option value="billed">วางบิลแล้ว</option>
@@ -263,9 +260,8 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                             type="date"
                             value={item.paidDate || ''}
                             onChange={(e) => onUpdateBillingStatus(item.id, 'paid', e.target.value)}
-                            disabled={!isAdmin}
-                            onClick={(e) => { if (isAdmin) { try { e.currentTarget.showPicker(); } catch (_) {} } }}
-                            className={`w-full max-w-[120px] bg-slate-950 border border-slate-700 text-[10px] text-emerald-400 rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-500 [color-scheme:dark] ${!isAdmin ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+                            onClick={(e) => { try { e.currentTarget.showPicker(); } catch (_) {} }}
+                            className="w-full max-w-[120px] bg-slate-950 border border-slate-700 text-[10px] text-emerald-400 rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-500 cursor-pointer [color-scheme:dark]"
                             title="วันที่ชำระเงิน"
                           />
                         )}
@@ -295,23 +291,21 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                           <FileSpreadsheet className="w-4 h-4 text-blue-400" />
                         </a>
 
-                        {isAdmin && (
-                          <button
-                            onClick={() => {
-                              if (deletingId === item.id) {
-                                onDeleteBillingItem(item.id);
-                                setDeletingId(null);
-                              } else {
-                                setDeletingId(item.id);
-                                setTimeout(() => setDeletingId(null), 3000);
-                              }
-                            }}
-                            className={`p-1.5 rounded-lg transition-colors ${deletingId === item.id ? 'bg-red-600 text-white hover:bg-red-500' : 'text-slate-500 hover:text-red-400'}`}
-                            title={deletingId === item.id ? 'คลิกอีกครั้งเพื่อยืนยัน' : 'ลบ'}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => {
+                            if (deletingId === item.id) {
+                              onDeleteBillingItem(item.id);
+                              setDeletingId(null);
+                            } else {
+                              setDeletingId(item.id);
+                              setTimeout(() => setDeletingId(null), 3000);
+                            }
+                          }}
+                          className={`p-1.5 rounded-lg transition-colors ${deletingId === item.id ? 'bg-red-600 text-white hover:bg-red-500' : 'text-slate-500 hover:text-red-400'}`}
+                          title={deletingId === item.id ? 'คลิกอีกครั้งเพื่อยืนยัน' : 'ลบ'}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </td>
 

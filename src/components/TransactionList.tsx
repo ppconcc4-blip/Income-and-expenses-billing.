@@ -103,15 +103,13 @@ export const TransactionList: React.FC<TransactionListProps> = ({
             <span>ส่งออก CSV</span>
           </button>
 
-          {isAdmin && (
-            <button
-              onClick={onOpenMobileForm}
-              className="flex items-center space-x-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-md"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ เพิ่มรายการ</span>
-            </button>
-          )}
+          <button
+            onClick={onOpenMobileForm}
+            className="flex items-center space-x-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-md"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ เพิ่มรายการ</span>
+          </button>
         </div>
       </div>
 
@@ -274,25 +272,23 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                     </td>
 
                     {/* Delete Action */}
-                    {isAdmin && (
-                      <td className="py-3 px-4 text-center">
-                        <button
-                          onClick={() => {
-                            if (deletingId === tx.id) {
-                              onDeleteTransaction(tx.id);
-                              setDeletingId(null);
-                            } else {
-                              setDeletingId(tx.id);
-                              setTimeout(() => setDeletingId(null), 3000);
-                            }
-                          }}
-                          className={`p-1.5 rounded-lg transition-colors ${deletingId === tx.id ? 'text-white bg-red-600 hover:bg-red-500' : 'text-slate-500 hover:text-red-400 hover:bg-slate-800'}`}
-                          title={deletingId === tx.id ? 'คลิกอีกครั้งเพื่อยืนยัน' : 'ลบรายการนี้'}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    )}
+                    <td className="py-3 px-4 text-center">
+                      <button
+                        onClick={() => {
+                          if (deletingId === tx.id) {
+                            onDeleteTransaction(tx.id);
+                            setDeletingId(null);
+                          } else {
+                            setDeletingId(tx.id);
+                            setTimeout(() => setDeletingId(null), 3000);
+                          }
+                        }}
+                        className={`p-1.5 rounded-lg transition-colors ${deletingId === tx.id ? 'text-white bg-red-600 hover:bg-red-500' : 'text-slate-500 hover:text-red-400 hover:bg-slate-800'}`}
+                        title={deletingId === tx.id ? 'คลิกอีกครั้งเพื่อยืนยัน' : 'ลบรายการนี้'}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
 
                   </tr>
                 );

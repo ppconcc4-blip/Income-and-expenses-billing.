@@ -201,9 +201,13 @@ export default function App() {
     }
   }, [billingSheetId, isAdmin]);
 
-  // Load User Configuration and Global Data from Firestore
+  // Load User Configuration from Firestore
   useEffect(() => {
-    const loadAppData = async () => {
+    const loadConfig = async () => {
+      if (!googleUser) {
+        setIsLoadingConfig(false);
+        return;
+      }
       setIsLoadingConfig(true);
       try {
         let configData: any = {};
@@ -213,8 +217,8 @@ export default function App() {
         if (globalSnap.exists()) {
           configData = globalSnap.data();
           console.log("Global config loaded:", configData);
-        } else if (googleUser) {
-          // Migration from user config (only if logged in)
+        } else {
+          // Migration from user config
           const configDoc = doc(db, 'users', googleUser.uid, 'config', 'sheets');
           const catDoc = doc(db, 'users', googleUser.uid, 'config', 'categories');
           const [docSnap, catSnap] = await Promise.all([getDoc(configDoc), getDoc(catDoc)]);
@@ -246,26 +250,13 @@ export default function App() {
           setIncomeCategories(configData.incomeCategories);
           localStorage.setItem('pp_income_categories', JSON.stringify(configData.incomeCategories));
         }
-
-        // Load Global Pulled Data (Transactions, Billings, Projects)
-        const globalDataDoc = doc(db, 'global', 'data');
-        const dataSnap = await getDoc(globalDataDoc);
-        if (dataSnap.exists()) {
-          const cloudData = dataSnap.data();
-          if (cloudData.transactions) setTransactions(cloudData.transactions);
-          if (cloudData.billingItems) setBillingItems(cloudData.billingItems);
-          if (cloudData.projects) setProjects(cloudData.projects);
-          if (cloudData.lastPulled) setLastPulledAt(cloudData.lastPulled);
-          console.log("Global data loaded from Firestore");
-        }
       } catch (e) {
-        console.error("Error loading app data from Firestore", e);
+        console.error("Error loading config from Firestore", e);
       } finally {
         setIsLoadingConfig(false);
       }
     };
-
-    loadAppData();
+    loadConfig();
   }, [googleUser, isAdmin]);
 
   // Auto-Pull Data once config is loaded and token is available
@@ -383,23 +374,6 @@ export default function App() {
         setBillingItems(res.billingItems);
       }
 
-      // If admin, save this data to Firestore so viewers can see it without logging in
-      if (isAdmin) {
-        try {
-          const now = new Date().toISOString();
-          await setDoc(doc(db, 'global', 'data'), {
-            transactions: res.transactions || [],
-            billingItems: res.billingItems || [],
-            projects: res.projects || [],
-            lastPulled: now
-          }, { merge: true });
-          setLastPulledAt(now);
-          console.log("Data successfully cached to global Firestore");
-        } catch (e) {
-          console.error("Error caching data to global Firestore", e);
-        }
-      }
-
       if (!silent) alert(res.message);
     } else {
       if (!silent) alert(res.message || 'ไม่สามารถดึงข้อมูลจาก Google Sheets ได้');
@@ -423,10 +397,6 @@ export default function App() {
   const handleAddTransaction = (newTxData: Omit<Transaction, 'id' | 'createdAt'>) => {
     if (!googleUser) {
       setToastMessage('กรุณาเข้าสู่ระบบก่อนบันทึกรายการ');
-      return;
-    }
-    if (!isAdmin) {
-      setToastMessage('ขออภัย เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถบันทึกข้อมูลได้');
       return;
     }
     const newTx: Transaction = {
@@ -457,10 +427,6 @@ export default function App() {
       setToastMessage('กรุณาเข้าสู่ระบบก่อนบันทึกใบวางบิล');
       return;
     }
-    if (!isAdmin) {
-      setToastMessage('ขออภัย เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถบันทึกข้อมูลได้');
-      return;
-    }
     const newBilling: BillingItem = {
       ...newBillingData,
       id: `bill-${Date.now()}`,
@@ -486,10 +452,6 @@ export default function App() {
 
   // Update Billing Status Handler
   const handleUpdateBillingStatus = (id: string, newStatus: BillingStatus, newPaidDate?: string) => {
-    if (!isAdmin) {
-      setToastMessage('ขออภัย เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถอัปเดตสถานะได้');
-      return;
-    }
     let updatedItem: BillingItem | null = null;
     
     setBillingItems(prev => prev.map(item => {
@@ -531,10 +493,6 @@ export default function App() {
 
   // Delete Handlers
   const handleDeleteTransaction = (id: string) => {
-    if (!isAdmin) {
-      setToastMessage('ขออภัย เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบรายการได้');
-      return;
-    }
     const txToDelete = transactions.find(t => t.id === id);
     setTransactions(prev => prev.filter(t => t.id !== id));
     
@@ -550,10 +508,6 @@ export default function App() {
   };
 
   const handleDeleteBillingItem = (id: string) => {
-    if (!isAdmin) {
-      setToastMessage('ขออภัย เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบรายการได้');
-      return;
-    }
     const billingToDelete = billingItems.find(b => b.id === id);
     setBillingItems(prev => prev.filter(b => b.id !== id));
     
@@ -569,10 +523,6 @@ export default function App() {
   };
 
   const handleDeleteProject = async (projectId: string) => {
-    if (!isAdmin) {
-      setToastMessage('ขออภัย เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบโครงการได้');
-      return;
-    }
     if (projects.length <= 1) {
       alert('ไม่สามารถลบโครงการได้ ต้องมีอย่างน้อย 1 โครงการในระบบ');
       return;

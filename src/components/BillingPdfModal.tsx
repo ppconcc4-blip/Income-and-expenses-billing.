@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Printer, X, Edit3, ChevronDown, ChevronUp, Calendar, User, Phone, DollarSign, CheckSquare, Square, MapPin } from 'lucide-react';
 import { BillingItem, Project } from '../types';
+import { PPLogo } from './PPLogo';
 
 interface BillingPdfModalProps {
   isOpen: boolean;
@@ -11,37 +12,47 @@ interface BillingPdfModalProps {
 }
 
 export function thaiBahtText(num: number): string {
-  if (isNaN(num) || num <= 0) return 'สองแสนบาทถ้วน'; // Fallback or standard wording if zero
-  
-  const integerPart = Math.floor(Math.round(num * 100) / 100);
-  if (integerPart === 200000) return 'สองแสนบาทถ้วน';
+  if (isNaN(num) || num < 0) return '';
+  if (num === 0) return 'ศูนย์บาทถ้วน';
+
+  const numStr = num.toFixed(2);
+  const [bahtStr, satangStr] = numStr.split('.');
 
   const digits = ['ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
-  const positions = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน'];
-  
-  const integerStr = integerPart.toString();
-  let result = '';
-  const len = integerStr.length;
-  
-  for (let i = 0; i < len; i++) {
-    const digit = parseInt(integerStr[i]);
-    const pos = len - i - 1;
-    if (digit !== 0) {
-      if (pos % 6 === 1 && digit === 1) {
-        result += 'สิบ';
-      } else if (pos % 6 === 1 && digit === 2) {
-        result += 'ยี่สิบ';
-      } else if (pos % 6 === 0 && digit === 1 && len > 1 && i === len - 1) {
-        result += 'เอ็ด';
-      } else {
-        result += digits[digit] + positions[pos % 6];
+  const units = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน'];
+
+  const convert = (s: string) => {
+    let res = '';
+    const len = s.length;
+    for (let i = 0; i < len; i++) {
+      const d = parseInt(s[i]);
+      const p = len - i - 1;
+      if (d !== 0) {
+        if (p % 6 === 1 && d === 1) {
+          res += 'สิบ';
+        } else if (p % 6 === 1 && d === 2) {
+          res += 'ยี่สิบ';
+        } else if (p % 6 === 0 && d === 1 && i > 0 && i === len - 1) {
+          res += 'เอ็ด';
+        } else {
+          res += digits[d] + units[p % 6];
+        }
+      }
+      if (p > 0 && p % 6 === 0) {
+        res += 'ล้าน';
       }
     }
-    if (pos > 0 && pos % 6 === 0) {
-      result += 'ล้าน';
-    }
+    return res;
+  };
+
+  let result = convert(bahtStr) + 'บาท';
+  if (parseInt(satangStr) === 0) {
+    result += 'ถ้วน';
+  } else {
+    result += convert(satangStr) + 'สตางค์';
   }
-  return `${result}บาทถ้วน`;
+
+  return result;
 }
 
 // Convert YYYY-MM-DD to Thai Buddhist date format (e.g., 2026-03-24 -> 24 / มี.ค. / 2569)
@@ -254,122 +265,115 @@ export const BillingPdfModal: React.FC<BillingPdfModalProps> = ({
         <div className="flex justify-between items-start gap-2">
           
           {/* Logo & Company Info */}
-          <div className="flex items-start gap-3 flex-1">
-            {/* Geometric A Logo */}
-            <div className="w-16 h-16 shrink-0 pt-1">
-              <svg viewBox="0 0 100 100" className="w-full h-full fill-blue-900 stroke-blue-900">
-                <path d="M50 5 L90 90 L75 90 L50 35 L25 90 L10 90 Z" fill="#1e3a8a" />
-                <path d="M25 65 L75 65 L75 75 L25 75 Z" fill="#1e3a8a" />
-                <path d="M35 48 L65 48 L65 56 L35 56 Z" fill="#ffffff" />
-                <path d="M48 5 L52 5 L52 90 L48 90 Z" fill="#1e3a8a" />
-              </svg>
+          <div className="flex items-start gap-4 flex-1">
+            {/* PP Construction Logo */}
+            <div className="w-20 h-20 shrink-0">
+              <PPLogo className="w-full h-full" fillColor={isCopy ? "#334155" : "#1e3a8a"} />
             </div>
 
             <div className="space-y-0.5 text-[10px]">
-              <h1 className="text-[12px] font-extrabold text-blue-950 uppercase">
+              <h1 className={`text-[13px] font-black uppercase ${isCopy ? 'text-slate-900' : 'text-blue-900'}`}>
                 บริษัท พีพี. คอนสตรัคชั่น แอนด์ แมนเนจเม้นท์ จำกัด (สำนักงานใหญ่)
               </h1>
-              <h2 className="text-[11px] font-bold text-blue-900 tracking-tight">
+              <h2 className={`text-[11px] font-bold tracking-tight ${isCopy ? 'text-slate-800' : 'text-blue-800'}`}>
                 PP. CONSTRUCTION AND MANAGEMENT CO.,LTD. ( Head Office )
               </h2>
-              <p className="text-[9.5px] text-slate-800">
-                บริษัท พีพี. คอนสตรัคชั่น แอนด์ แมนเนจเม้นท์ จำกัด &nbsp;&nbsp;|&nbsp;&nbsp; PP. CONSTRUCTION AND MANAGEMENT CO.,LTD.
+              <p className="text-[10px] text-slate-800 font-medium">
+                45 ซอยโชคชัย 4 ซอย 83 ถนนโชคชัย 4 แขวงลาดพร้าว เขตลาดพร้าว กรุงเทพมหานคร 10230
               </p>
-              <p className="text-[9.5px] text-slate-800">
-                45 ซอยโชคชัย 4 ซอย 83 ถนนโชคชัย 4 แขวงลาดพร้าว เขตลาดพร้าว กรุงเทพมหานคร 10230 &nbsp;|&nbsp; 45 Soi Chokchai 4 Soi 83 , Chokchai 4 Road , Ladprao , Bangkok 10230
+              <p className="text-[10px] text-slate-800">
+                45 Soi Chokchai 4 Soi 83 , Chokchai 4 Road , Ladprao , Bangkok 10230
               </p>
-              <p className="text-[10px] font-bold text-slate-900 pt-0.5">
-                เลขประจำตัวผู้เสียภาษี/ TAX ID : <span className="font-extrabold">0105556120098</span> &nbsp;&nbsp; โทรศัพท์ / TEL : <span className="font-bold">062-519-9517</span>
+              <p className="text-[10.5px] font-bold text-slate-900 pt-1">
+                เลขประจำตัวผู้เสียภาษี/ TAX ID : <span className="font-black">0105556120098</span> &nbsp;&nbsp; โทรศัพท์ / TEL : <span className="font-bold">062-519-9517</span>
               </p>
             </div>
           </div>
 
           {/* Right Header Document Badge */}
-          <div className="w-52 text-right shrink-0">
+          <div className="w-56 text-right shrink-0">
             {isCopy ? (
-              <div className="border border-slate-900 bg-white text-black p-1.5 text-center rounded-sm">
-                <p className="text-[10px] font-extrabold">สำเนาใบแจ้งหนี้สำหรับบริษัท</p>
-                <p className="text-[13px] font-black tracking-wider uppercase">INVOICE COPY</p>
+              <div className="border-2 border-slate-900 bg-white text-black p-2 text-center rounded-sm">
+                <p className="text-[11px] font-black">สำเนาใบวางบิล</p>
+                <p className="text-[14px] font-black tracking-widest uppercase">BILLING NOTE COPY</p>
               </div>
             ) : (
-              <div className="bg-blue-800 text-white p-1.5 text-center rounded-sm shadow-sm">
-                <p className="text-[11px] font-bold">ต้นฉบับใบแจ้งหนี้</p>
-                <p className="text-[14px] font-black tracking-wider uppercase">INVOICE</p>
+              <div className="bg-blue-900 text-white p-2 text-center rounded-sm shadow-md">
+                <p className="text-[12px] font-black">ต้นฉบับใบวางบิล</p>
+                <p className="text-[16px] font-black tracking-widest uppercase">BILLING NOTE</p>
               </div>
             )}
             
-            <div className="mt-1 text-right text-[10.5px] space-y-0.5">
-              <p className="font-bold text-slate-900">ใบแจ้งหนี้</p>
-              <p><span className="text-slate-600">เลขที่ :</span> <span className="font-bold text-slate-900">{invoiceNo || 'PP-MA-01'}</span></p>
-              <p><span className="text-slate-600">งวดงาน :</span> <span className="font-medium text-slate-900">{periodText || 'งวดที่ 1'}</span></p>
-              <p><span className="text-slate-600">วันที่ :</span> <span className="font-medium text-slate-900">{billingDateText || '24/3/2026'}</span></p>
-              <p><span className="text-slate-600">วันที่ครบกำหนด :</span> <span className="text-slate-800">{dueDateText}</span></p>
-              <p><span className="text-slate-600">วันที่รับเงิน :</span> <span className="text-slate-800">{receivedDateText}</span></p>
+            <div className="mt-2 text-right text-[11px] space-y-1">
+              <p><span className="text-slate-600 font-bold">เลขที่ / NO :</span> <span className="font-black text-slate-950 text-[12px]">{invoiceNo || 'PP-MA-01'}</span></p>
+              <p><span className="text-slate-600 font-bold">วันที่ / DATE :</span> <span className="font-black text-slate-950">{billingDateText || '24/3/2026'}</span></p>
             </div>
           </div>
 
         </div>
 
-        {/* SUBJECT & CUSTOMER BOX (Blue/Black Outline Box) */}
-        <div className={`border ${isCopy ? 'border-slate-800' : 'border-blue-800'} text-[10.5px] overflow-hidden`}>
-          {/* Top Subject Title Bar */}
-          <div className={`px-2 py-1 border-b ${isCopy ? 'border-slate-800 bg-slate-100' : 'border-blue-800 bg-blue-50/50'} font-bold flex items-center`}>
-            <span className="w-24 text-slate-900">SUBJECT :</span>
-            <span className="font-extrabold text-blue-950 text-[11px]">{subjectName}</span>
-          </div>
-
-          {/* Customer Details Grid */}
-          <div className="grid grid-cols-12 divide-x divide-slate-400 p-1.5 gap-y-1">
-            <div className="col-span-8 pr-2 space-y-0.5">
+        {/* SUBJECT & CUSTOMER BOX */}
+        <div className={`border ${isCopy ? 'border-slate-800' : 'border-blue-900'} text-[11px] overflow-hidden`}>
+          <div className="grid grid-cols-12 divide-x divide-slate-300">
+            {/* Left: Customer Info */}
+            <div className="col-span-7 p-3 space-y-1.5">
               <div className="flex">
-                <span className="w-24 text-slate-700 font-medium shrink-0">ลูกค้า :</span>
-                <span className="font-bold text-slate-900">{clientName}</span>
+                <span className="w-24 text-slate-600 font-bold shrink-0">ลูกค้า / CUSTOMER :</span>
+                <span className="font-black text-slate-950">{clientName}</span>
               </div>
               <div className="flex items-start">
-                <span className="w-24 text-slate-700 font-medium shrink-0">CUSTOMER :</span>
-                <span className="text-slate-800 leading-tight">{clientAddress}</span>
+                <span className="w-24 text-slate-600 font-bold shrink-0">ที่อยู่ / ADDRESS :</span>
+                <span className="text-slate-900 leading-tight font-medium">{clientAddress}</span>
               </div>
-              <div className="flex pt-0.5">
-                <span className="w-40 text-slate-700 font-medium shrink-0">เลขประจำตัวผู้เสียภาษี/ TAX ID :</span>
-                <span className="text-slate-800">{clientTaxId}</span>
-              </div>
-              <div className="flex pt-0.5 border-t border-slate-200">
-                <span className="w-40 text-slate-700 font-medium shrink-0">ชื่อผู้ติดต่อ/CONTACT :</span>
-                <span className="font-bold text-slate-900">{contactPerson}</span>
+              <div className="flex pt-1">
+                <span className="w-40 text-slate-600 font-bold shrink-0">เลขประจำตัวผู้เสียภาษี / TAX ID :</span>
+                <span className="text-slate-950 font-black tracking-wider">{clientTaxId}</span>
               </div>
             </div>
 
-            <div className="col-span-4 pl-2 space-y-1">
+            {/* Right: Project & Contact */}
+            <div className="col-span-5 p-3 space-y-1.5 bg-slate-50/30">
               <div className="flex">
-                <span className="w-24 text-slate-700 font-medium shrink-0">โทรศัพท์ / TEL :</span>
-                <span className="font-bold text-slate-900">{contactPhone}</span>
+                <span className="w-24 text-slate-600 font-bold shrink-0">โครงการ / PROJECT :</span>
+                <span className="font-black text-blue-900">{subjectName}</span>
               </div>
               <div className="flex">
-                <span className="w-24 text-slate-700 font-medium shrink-0">โทรสาร / FAX :</span>
-                <span className="text-slate-800">{contactFax}</span>
+                <span className="w-24 text-slate-600 font-bold shrink-0">งวดงาน / PERIOD :</span>
+                <span className="font-black text-slate-950">{periodText}</span>
+              </div>
+              <div className="flex">
+                <span className="w-24 text-slate-600 font-bold shrink-0">ผู้ติดต่อ / CONTACT :</span>
+                <span className="font-black text-slate-950">{contactPerson}</span>
+              </div>
+              <div className="flex">
+                <span className="w-24 text-slate-600 font-bold shrink-0">โทรศัพท์ / TEL :</span>
+                <span className="font-black text-slate-950">{contactPhone}</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* ITEMS & FINANCIAL TABLE */}
-        <div className={`border ${isCopy ? 'border-slate-800' : 'border-blue-800'}`}>
-          <table className="w-full border-collapse text-[10.5px]">
+        <div className={`border ${isCopy ? 'border-slate-800' : 'border-blue-900'}`}>
+          <table className="w-full border-collapse text-[11px]">
             <thead>
-              <tr className={`${isCopy ? 'bg-black text-white' : 'bg-blue-800 text-white'} font-bold border-b border-slate-800`}>
-                <th className="py-1.5 px-3 text-center w-[70%] border-r border-slate-400">รายการ<br/><span className="text-[9px] font-normal">DESCRIPTION</span></th>
-                <th className="py-1.5 px-3 text-right w-[30%]">จำนวนเงิน<br/><span className="text-[9px] font-normal">AMOUNT</span></th>
+              <tr className={`${isCopy ? 'bg-slate-900 text-white' : 'bg-blue-900 text-white'} font-bold border-b border-slate-800`}>
+                <th className="py-2 px-1 text-center w-[10%] border-r border-slate-400">ลำดับ<br/><span className="text-[8px] font-normal">NO.</span></th>
+                <th className="py-2 px-3 text-center w-[65%] border-r border-slate-400">รายการ<br/><span className="text-[8px] font-normal">DESCRIPTION</span></th>
+                <th className="py-2 px-3 text-right w-[25%]">จำนวนเงิน<br/><span className="text-[8px] font-normal">AMOUNT</span></th>
               </tr>
             </thead>
             <tbody>
               {/* Item row centered horizontally & vertically */}
-              <tr className="min-h-[140px] align-middle">
-                <td className="py-3 px-3 border-r border-slate-400 h-32 text-center align-middle font-bold text-slate-900">
-                  <div className="flex items-center justify-center h-full w-full text-center">
-                    <p className="font-bold text-slate-900 text-[11.5px]">{itemDesc}</p>
-                  </div>
+              <tr className="min-h-[160px]">
+                <td className="py-4 px-1 border-r border-slate-300 text-center align-top font-bold text-slate-900">
+                  1
                 </td>
-                <td className="py-3 px-3 text-right font-bold text-slate-900 border-b border-slate-300 align-middle">
+                <td className="py-4 px-4 border-r border-slate-300 h-40 align-top">
+                  <p className="font-black text-slate-950 text-[12px] leading-relaxed mb-1">{itemDesc}</p>
+                  <p className="text-slate-600 text-[10px] italic">({periodText})</p>
+                </td>
+                <td className="py-4 px-3 text-right font-black text-slate-950 align-top">
                   {amount > 0 ? amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}
                 </td>
               </tr>
@@ -474,32 +478,31 @@ export const BillingPdfModal: React.FC<BillingPdfModalProps> = ({
           </div>
 
           {/* Right Box: Signature Columns */}
-          <div className="col-span-6 border border-slate-800 grid grid-cols-2 text-center text-[10px] divide-x divide-slate-800">
-            {/* Receiver Signature (No input needed as requested) */}
-            <div className="p-2 flex flex-col justify-between h-32">
-              <p className="font-bold text-slate-900">ผู้รับวางบิล</p>
+          <div className="col-span-6 border border-slate-800 grid grid-cols-2 text-center text-[11px] divide-x divide-slate-800">
+            {/* Receiver Signature */}
+            <div className="p-3 flex flex-col justify-between h-40">
+              <p className="font-black text-slate-950 underline underline-offset-4">ผู้รับวางบิล / RECEIVER</p>
               
-              <div className="space-y-1">
-                <p className="text-slate-800 font-medium">
-                  (&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)
+              <div className="space-y-1.5">
+                <p className="text-slate-800 font-bold">
+                  (&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)
                 </p>
-                <p className="font-semibold text-slate-900 pt-1">
-                  วันที่/DATE <span className="font-bold">____/_____/_____</span>
+                <p className="font-bold text-slate-950 pt-2 border-t border-slate-200">
+                  วันที่/DATE <span className="font-black">____/_____/_____</span>
                 </p>
               </div>
             </div>
 
             {/* Issuer Signature */}
-            <div className="p-2 flex flex-col justify-between h-32 bg-slate-50/50">
-              <p className="font-bold text-slate-900">ผู้วางบิล</p>
+            <div className="p-3 flex flex-col justify-between h-40 bg-slate-50/50">
+              <p className="font-black text-slate-950 underline underline-offset-4">ผู้วางบิล / ISSUED BY</p>
               
-              <div className="space-y-1">
-                <p className="text-slate-900 font-bold">
-                  ( {issuerName ? issuerName : '\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0'} )
+              <div className="space-y-1.5">
+                <p className="text-slate-950 font-black">
+                  ( {issuerName ? issuerName : '\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0'} )
                 </p>
-                {/* Calendar Date under Issuer Name */}
-                <p className="font-bold text-slate-900 pt-1">
-                  วันที่/DATE <span className="font-extrabold text-blue-950">{issuerDateFormatted}</span>
+                <p className="font-black text-blue-950 pt-2 border-t border-slate-200">
+                  วันที่/DATE <span className="font-black text-[12px]">{issuerDateFormatted}</span>
                 </p>
               </div>
             </div>

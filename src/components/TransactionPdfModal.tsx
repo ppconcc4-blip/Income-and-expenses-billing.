@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Printer, X, FileSpreadsheet, Filter, Calendar, Building2, ArrowUpRight, ArrowDownRight, DollarSign, ExternalLink } from 'lucide-react';
 import { Transaction, Project } from '../types';
+import { PPLogo } from './PPLogo';
 
 interface TransactionPdfModalProps {
   isOpen: boolean;
@@ -16,9 +17,23 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
   projects
 }) => {
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedType, setSelectedType] = useState<'all' | 'income' | 'expense'>('all');
 
   if (!isOpen) return null;
+
+  // Get unique months for filter
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    transactions.forEach(t => {
+      if (!t.date) return;
+      const d = new Date(t.date);
+      if (isNaN(d.getTime())) return;
+      const mStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      months.add(mStr);
+    });
+    return Array.from(months).sort().reverse();
+  }, [transactions]);
 
   // Filter and sort ASCENDING by date (เรียงตามวันที่น้อยไปหามาก)
   const filteredAndSortedTransactions = useMemo(() => {
@@ -26,7 +41,15 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
       .filter(t => {
         const matchProject = selectedProjectId === 'all' || t.projectId === selectedProjectId;
         const matchType = selectedType === 'all' || t.type === selectedType;
-        return matchProject && matchType;
+        
+        let matchMonth = true;
+        if (selectedMonth !== 'all') {
+          const d = new Date(t.date);
+          const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          matchMonth = m === selectedMonth;
+        }
+
+        return matchProject && matchType && matchMonth;
       })
       .sort((a, b) => {
         // Date ascending: earliest first (น้อยไปหามาก)
@@ -34,7 +57,17 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
         if (dateComp !== 0) return dateComp;
         return (a.createdAt || '').localeCompare(b.createdAt || '');
       });
-  }, [transactions, selectedProjectId, selectedType]);
+  }, [transactions, selectedProjectId, selectedType, selectedMonth]);
+
+  // Calculate Running Balance
+  const transactionsWithBalance = useMemo(() => {
+    let runningBalance = 0;
+    return filteredAndSortedTransactions.map(tx => {
+      if (tx.type === 'income') runningBalance += tx.amount;
+      else runningBalance -= tx.amount;
+      return { ...tx, runningBalance };
+    });
+  }, [filteredAndSortedTransactions]);
 
   // Calculations for summary totals
   const totalIncome = filteredAndSortedTransactions
@@ -52,6 +85,10 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
   const projectTitleText = selectedProjectId === 'all' 
     ? 'ทุกโครงการ (All Projects)' 
     : `[${activeProjectObj?.code || ''}] ${activeProjectObj?.name || ''}`;
+
+  const monthTitleText = selectedMonth === 'all'
+    ? 'ทุกช่วงเวลา (All Time)'
+    : new Date(selectedMonth + '-01').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
 
   const handlePrint = () => {
     const printElement = document.getElementById('transaction-printable-area');
@@ -162,6 +199,26 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
               </select>
             </div>
 
+            {/* Month Selector */}
+            <div className="flex items-center space-x-2 flex-1 min-w-[180px]">
+              <span className="text-slate-400 font-medium shrink-0 flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-blue-400" />
+                <span>เดือน:</span>
+              </span>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="bg-slate-950 border border-slate-700 text-emerald-300 font-bold text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-emerald-400 w-full"
+              >
+                <option value="all">📅 ทุกเดือน (All Time)</option>
+                {availableMonths.map(m => (
+                  <option key={m} value={m}>
+                    🗓️ {new Date(m + '-01').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Type Selector */}
             <div className="flex items-center space-x-2 min-w-[180px]">
               <span className="text-slate-400 font-medium shrink-0">ประเภท:</span>
@@ -193,41 +250,41 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
           >
             {/* PDF HEADER */}
             <div className="border-b-2 border-slate-900 pb-3 mb-4 flex justify-between items-start gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded bg-blue-900 text-white font-extrabold flex items-center justify-center text-sm">
-                    PP
-                  </div>
-                  <div>
-                    <h1 className="text-sm font-extrabold text-blue-950 uppercase leading-none">
-                      บริษัท พีพี. คอนสตรัคชั่น แอนด์ แมนเนจเม้นท์ จำกัด (สำนักงานใหญ่)
-                    </h1>
-                    <p className="text-[10px] text-slate-700 font-semibold mt-0.5">
-                      PP. CONSTRUCTION AND MANAGEMENT CO., LTD. ( Head Office )
-                    </p>
-                  </div>
+              <div className="flex items-start gap-4">
+                <div className="w-16 h-16 shrink-0">
+                  <PPLogo className="w-full h-full" fillColor="#1e3a8a" />
                 </div>
-                <p className="text-[9.5px] text-slate-600 pt-1">
-                  45 ซอยโชคชัย 4 ซอย 83 ถนนโชคชัย 4 แขวงลาดพร้าว เขตลาดพร้าว กรุงเทพมหานคร 10230 | TAX ID: 0105556120098
-                </p>
+                <div className="space-y-1">
+                  <h1 className="text-sm font-black text-blue-950 uppercase leading-tight">
+                    บริษัท พีพี. คอนสตรัคชั่น แอนด์ แมนเนจเม้นท์ จำกัด (สำนักงานใหญ่)
+                  </h1>
+                  <h2 className="text-[11px] font-bold text-blue-800 leading-tight">
+                    PP. CONSTRUCTION AND MANAGEMENT CO., LTD. ( Head Office )
+                  </h2>
+                  <p className="text-[9.5px] text-slate-600 pt-1">
+                    45 ซอยโชคชัย 4 ซอย 83 ถนนโชคชัย 4 แขวงลาดพร้าว เขตลาดพร้าว กรุงเทพมหานคร 10230 | TAX ID: 0105556120098
+                  </p>
+                </div>
               </div>
 
-              <div className="text-right border-l border-slate-300 pl-4 space-y-0.5 min-w-[180px]">
-                <span className="bg-emerald-900 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase">
+              <div className="text-right border-l border-slate-300 pl-4 space-y-1 min-w-[200px]">
+                <div className="bg-blue-900 text-white text-[10px] font-black px-2 py-1 rounded uppercase tracking-wider text-center">
                   INCOME & EXPENSE LEDGER
-                </span>
-                <h2 className="text-xs font-bold text-slate-900 mt-1">
-                  รายงานสมุดบัญชีรายรับ-รายจ่าย
+                </div>
+                <h2 className="text-[13px] font-black text-slate-900 mt-1">
+                  สมุดบัญชีรายรับ-รายจ่าย
                 </h2>
-                <p className="text-[9.5px] text-slate-600">
-                  เงื่อนไข: <span className="font-bold text-slate-900">{projectTitleText}</span>
-                </p>
-                <p className="text-[9.5px] text-slate-600">
-                  เรียงตาม: <span className="font-bold text-slate-900">วันที่ (น้อยไปหามาก)</span>
-                </p>
-                <p className="text-[9px] text-slate-500">
-                  วันที่พิมพ์: {new Date().toLocaleDateString('th-TH')}
-                </p>
+                <div className="space-y-0.5">
+                  <p className="text-[10px] text-slate-700 font-bold">
+                    โครงการ: <span className="text-blue-900">{projectTitleText}</span>
+                  </p>
+                  <p className="text-[10px] text-slate-700 font-bold">
+                    ประจำเดือน: <span className="text-blue-900">{monthTitleText}</span>
+                  </p>
+                  <p className="text-[9px] text-slate-500">
+                    วันที่พิมพ์: {new Date().toLocaleDateString('th-TH')}
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -265,19 +322,20 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
                   <th className="py-2 px-2 border-r border-slate-700">รายละเอียด / รายการ</th>
                   <th className="py-2 px-2 border-r border-slate-700">ผู้จ่าย / ผู้รับเงิน</th>
                   <th className="py-2 px-2 text-center border-r border-slate-700">เลขที่เอกสาร</th>
-                  <th className="py-2 px-2 text-right border-r border-slate-700 text-emerald-300">รายรับ (บาท)</th>
-                  <th className="py-2 px-2 text-right text-red-300">รายจ่าย (บาท)</th>
+                  <th className="py-2 px-2 text-center border-r border-slate-700 text-emerald-300">รายรับ (บาท)</th>
+                  <th className="py-2 px-2 text-right border-r border-slate-700 text-red-300">รายจ่าย (บาท)</th>
+                  <th className="py-2 px-2 text-right text-blue-300">คงเหลือ (บาท)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {filteredAndSortedTransactions.length === 0 ? (
+                {transactionsWithBalance.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="py-8 text-center text-slate-500 font-medium italic">
+                    <td colSpan={11} className="py-8 text-center text-slate-500 font-medium italic">
                       ไม่พบรายการบันทึกรายรับ-รายจ่ายตามเงื่อนไขที่เลือก
                     </td>
                   </tr>
                 ) : (
-                  filteredAndSortedTransactions.map((tx, idx) => (
+                  transactionsWithBalance.map((tx, idx) => (
                     <tr key={tx.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/90'}>
                       <td className="py-1.5 px-1.5 text-center font-bold text-slate-600 border-r border-slate-200">
                         {idx + 1}
@@ -310,8 +368,11 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
                       <td className="py-1.5 px-2 text-right border-r border-slate-200 font-bold text-emerald-700 whitespace-nowrap">
                         {tx.type === 'income' ? tx.amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}
                       </td>
-                      <td className="py-1.5 px-2 text-right font-bold text-red-700 whitespace-nowrap">
+                      <td className="py-1.5 px-2 text-right border-r border-slate-200 font-bold text-red-700 whitespace-nowrap">
                         {tx.type === 'expense' ? tx.amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}
+                      </td>
+                      <td className="py-1.5 px-2 text-right font-black text-blue-900 bg-blue-50/30 whitespace-nowrap">
+                        {tx.runningBalance.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                     </tr>
                   ))
@@ -321,20 +382,21 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
               <tfoot>
                 <tr className="bg-slate-100 font-bold text-[10px] border-t-2 border-slate-800">
                   <td colSpan={8} className="py-2 px-3 text-right border-r border-slate-300 uppercase font-black text-slate-900">
-                    รวมทั้งสิ้น ({filteredAndSortedTransactions.length} รายการ) :
+                    รวมทั้งสิ้น ({transactionsWithBalance.length} รายการ) :
                   </td>
                   <td className="py-2 px-2 text-right border-r border-slate-300 font-extrabold text-emerald-800 text-[10.5px]">
                     {totalIncome.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td className="py-2 px-2 text-right font-extrabold text-red-800 text-[10.5px]">
+                  <td className="py-2 px-2 text-right border-r border-slate-300 font-extrabold text-red-800 text-[10.5px]">
                     {totalExpense.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
+                  <td className="bg-blue-100/50"></td>
                 </tr>
                 <tr className="bg-slate-200 font-black text-[11px] border-t border-slate-400">
                   <td colSpan={8} className="py-2 px-3 text-right border-r border-slate-300 uppercase text-slate-950">
                     ยอดเงินคงเหลือสุทธิ (NET TOTAL BALANCE) :
                   </td>
-                  <td colSpan={2} className={`py-2 px-3 text-right font-black text-xs ${netBalance >= 0 ? 'text-blue-950' : 'text-red-950'}`}>
+                  <td colSpan={3} className={`py-2 px-3 text-right font-black text-xs ${netBalance >= 0 ? 'text-blue-950' : 'text-red-950'}`}>
                     {netBalance.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
                   </td>
                 </tr>

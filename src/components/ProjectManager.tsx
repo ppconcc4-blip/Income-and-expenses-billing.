@@ -166,13 +166,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
 
         <button
           onClick={onOpenModal}
-          disabled={!isAdmin}
-          className={`flex items-center space-x-1.5 font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-lg shrink-0 ${
-            isAdmin 
-              ? "bg-amber-500 hover:bg-amber-400 text-slate-950" 
-              : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
-          }`}
-          title={isAdmin ? "เพิ่มโครงการใหม่ (เพิ่มชีต)" : "เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถเพิ่มโครงการได้"}
+          className="flex items-center space-x-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-lg shrink-0"
+          title="เพิ่มโครงการใหม่ (เพิ่มชีต)"
         >
           <Plus className="w-4 h-4" />
           <span>+ เพิ่มโครงการใหม่ (เพิ่มชีต)</span>
@@ -204,7 +199,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                 </div>
 
                 <div className="flex items-center space-x-1">
-                  {isAdmin && onUpdateProject && (
+                  {onUpdateProject && (
                     <button
                       onClick={() => setProjectToEdit(p)}
                       className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-colors"
@@ -213,7 +208,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                       <Edit3 className="w-4 h-4" />
                     </button>
                   )}
-                  {isAdmin && onDeleteProject && (
+                  {onDeleteProject && (
                     <button
                       onClick={() => setProjectToDelete(p.id)}
                       className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors"
