@@ -143,6 +143,7 @@ export default function App() {
   const [isTxPdfModalOpen, setIsTxPdfModalOpen] = useState<boolean>(false);
   const [selectedBillingForPdf, setSelectedBillingForPdf] = useState<BillingItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(true);
 
   // Auto-clear toast
   useEffect(() => {
@@ -167,11 +168,17 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('pp_expense_categories', JSON.stringify(expenseCategories));
-  }, [expenseCategories]);
+    if (googleUser) {
+      setDoc(doc(db, 'users', googleUser.uid, 'config', 'categories'), { expenseCategories }, { merge: true });
+    }
+  }, [expenseCategories, googleUser]);
 
   useEffect(() => {
     localStorage.setItem('pp_income_categories', JSON.stringify(incomeCategories));
-  }, [incomeCategories]);
+    if (googleUser) {
+      setDoc(doc(db, 'users', googleUser.uid, 'config', 'categories'), { incomeCategories }, { merge: true });
+    }
+  }, [incomeCategories, googleUser]);
 
   useEffect(() => {
     if (incomeSheetId) {
@@ -195,9 +202,12 @@ export default function App() {
   useEffect(() => {
     if (googleUser) {
       const loadConfig = async () => {
+        setIsLoadingConfig(true);
         try {
           const configDoc = doc(db, 'users', googleUser.uid, 'config', 'sheets');
-          const docSnap = await getDoc(configDoc);
+          const catDoc = doc(db, 'users', googleUser.uid, 'config', 'categories');
+          const [docSnap, catSnap] = await Promise.all([getDoc(configDoc), getDoc(catDoc)]);
+          
           if (docSnap.exists()) {
             const data = docSnap.data();
             if (data.incomeSheetId) {
@@ -209,11 +219,27 @@ export default function App() {
               localStorage.setItem('pp_billing_sheet_id', data.billingSheetId);
             }
           }
+          
+          if (catSnap.exists()) {
+            const data = catSnap.data();
+            if (data.expenseCategories) {
+              setExpenseCategories(data.expenseCategories);
+              localStorage.setItem('pp_expense_categories', JSON.stringify(data.expenseCategories));
+            }
+            if (data.incomeCategories) {
+              setIncomeCategories(data.incomeCategories);
+              localStorage.setItem('pp_income_categories', JSON.stringify(data.incomeCategories));
+            }
+          }
         } catch (e) {
           console.error("Error loading config from Firestore", e);
+        } finally {
+          setIsLoadingConfig(false);
         }
       };
       loadConfig();
+    } else {
+      setIsLoadingConfig(false);
     }
   }, [googleUser]);
 
@@ -657,7 +683,7 @@ export default function App() {
         
         {activeTab === 'dashboard' && (
           <>
-            {!incomeSheetId && !billingSheetId && (
+            {!isLoadingConfig && !incomeSheetId && !billingSheetId && (
               <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 text-center shadow-lg">
                 <FileSpreadsheet className="w-12 h-12 text-amber-500 mx-auto mb-4" />
                 <h3 className="text-xl font-bold text-white mb-2">ยังไม่ได้เชื่อมต่อ Google Sheets</h3>
