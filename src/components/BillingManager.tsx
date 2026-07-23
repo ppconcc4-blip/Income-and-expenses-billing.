@@ -247,7 +247,8 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                           <select
                             value={item.status}
                             onChange={(e) => onUpdateBillingStatus(item.id, e.target.value as BillingStatus)}
-                            className="bg-slate-950 border border-slate-700 text-xs text-white rounded-lg px-2 py-1 focus:outline-none focus:border-blue-500"
+                            disabled={!isAdmin}
+                            className={`bg-slate-950 border border-slate-700 text-xs text-white rounded-lg px-2 py-1 focus:outline-none focus:border-blue-500 ${!isAdmin ? 'opacity-70 cursor-not-allowed' : ''}`}
                           >
                             <option value="pending">รอวางบิล</option>
                             <option value="billed">วางบิลแล้ว</option>
@@ -260,8 +261,9 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                             type="date"
                             value={item.paidDate || ''}
                             onChange={(e) => onUpdateBillingStatus(item.id, 'paid', e.target.value)}
-                            onClick={(e) => { try { e.currentTarget.showPicker(); } catch (_) {} }}
-                            className="w-full max-w-[120px] bg-slate-950 border border-slate-700 text-[10px] text-emerald-400 rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-500 cursor-pointer [color-scheme:dark]"
+                            disabled={!isAdmin}
+                            onClick={(e) => { if (isAdmin) { try { e.currentTarget.showPicker(); } catch (_) {} } }}
+                            className={`w-full max-w-[120px] bg-slate-950 border border-slate-700 text-[10px] text-emerald-400 rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-500 [color-scheme:dark] ${!isAdmin ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                             title="วันที่ชำระเงิน"
                           />
                         )}

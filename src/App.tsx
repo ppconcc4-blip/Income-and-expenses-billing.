@@ -144,6 +144,7 @@ export default function App() {
   const [selectedBillingForPdf, setSelectedBillingForPdf] = useState<BillingItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(true);
+  const [lastPulledAt, setLastPulledAt] = useState<string | null>(null);
 
   const isAdmin = googleUser?.email === 'ppconcc4@gmail.com';
 
@@ -200,62 +201,71 @@ export default function App() {
     }
   }, [billingSheetId, isAdmin]);
 
-  // Load User Configuration from Firestore
+  // Load User Configuration and Global Data from Firestore
   useEffect(() => {
-    if (googleUser) {
-      const loadConfig = async () => {
-        setIsLoadingConfig(true);
-        try {
-          let data: any = {};
-          const globalConfigDoc = doc(db, 'global', 'config');
-          const globalSnap = await getDoc(globalConfigDoc);
-          
-          if (globalSnap.exists()) {
-            data = globalSnap.data();
-            console.log("Global config loaded:", data);
-          } else {
-            // Migration from user config
-            const configDoc = doc(db, 'users', googleUser.uid, 'config', 'sheets');
-            const catDoc = doc(db, 'users', googleUser.uid, 'config', 'categories');
-            const [docSnap, catSnap] = await Promise.all([getDoc(configDoc), getDoc(catDoc)]);
-            if (docSnap.exists()) {
-              data = { ...data, ...docSnap.data() };
-            }
-            if (catSnap.exists()) {
-              data = { ...data, ...catSnap.data() };
-            }
-            if (isAdmin && Object.keys(data).length > 0) {
-              await setDoc(globalConfigDoc, data, { merge: true });
-            }
+    const loadAppData = async () => {
+      setIsLoadingConfig(true);
+      try {
+        let configData: any = {};
+        const globalConfigDoc = doc(db, 'global', 'config');
+        const globalSnap = await getDoc(globalConfigDoc);
+        
+        if (globalSnap.exists()) {
+          configData = globalSnap.data();
+          console.log("Global config loaded:", configData);
+        } else if (googleUser) {
+          // Migration from user config (only if logged in)
+          const configDoc = doc(db, 'users', googleUser.uid, 'config', 'sheets');
+          const catDoc = doc(db, 'users', googleUser.uid, 'config', 'categories');
+          const [docSnap, catSnap] = await Promise.all([getDoc(configDoc), getDoc(catDoc)]);
+          if (docSnap.exists()) {
+            configData = { ...configData, ...docSnap.data() };
           }
-          
-          if (data.incomeSheetId) {
-            setIncomeSheetId(data.incomeSheetId);
-            localStorage.setItem('pp_income_sheet_id', data.incomeSheetId);
+          if (catSnap.exists()) {
+            configData = { ...configData, ...catSnap.data() };
           }
-          if (data.billingSheetId) {
-            setBillingSheetId(data.billingSheetId);
-            localStorage.setItem('pp_billing_sheet_id', data.billingSheetId);
+          if (isAdmin && Object.keys(configData).length > 0) {
+            await setDoc(globalConfigDoc, configData, { merge: true });
           }
-          
-          if (data.expenseCategories) {
-            setExpenseCategories(data.expenseCategories);
-            localStorage.setItem('pp_expense_categories', JSON.stringify(data.expenseCategories));
-          }
-          if (data.incomeCategories) {
-            setIncomeCategories(data.incomeCategories);
-            localStorage.setItem('pp_income_categories', JSON.stringify(data.incomeCategories));
-          }
-        } catch (e) {
-          console.error("Error loading config from Firestore", e);
-        } finally {
-          setIsLoadingConfig(false);
         }
-      };
-      loadConfig();
-    } else {
-      setIsLoadingConfig(false);
-    }
+        
+        if (configData.incomeSheetId) {
+          setIncomeSheetId(configData.incomeSheetId);
+          localStorage.setItem('pp_income_sheet_id', configData.incomeSheetId);
+        }
+        if (configData.billingSheetId) {
+          setBillingSheetId(configData.billingSheetId);
+          localStorage.setItem('pp_billing_sheet_id', configData.billingSheetId);
+        }
+        
+        if (configData.expenseCategories) {
+          setExpenseCategories(configData.expenseCategories);
+          localStorage.setItem('pp_expense_categories', JSON.stringify(configData.expenseCategories));
+        }
+        if (configData.incomeCategories) {
+          setIncomeCategories(configData.incomeCategories);
+          localStorage.setItem('pp_income_categories', JSON.stringify(configData.incomeCategories));
+        }
+
+        // Load Global Pulled Data (Transactions, Billings, Projects)
+        const globalDataDoc = doc(db, 'global', 'data');
+        const dataSnap = await getDoc(globalDataDoc);
+        if (dataSnap.exists()) {
+          const cloudData = dataSnap.data();
+          if (cloudData.transactions) setTransactions(cloudData.transactions);
+          if (cloudData.billingItems) setBillingItems(cloudData.billingItems);
+          if (cloudData.projects) setProjects(cloudData.projects);
+          if (cloudData.lastPulled) setLastPulledAt(cloudData.lastPulled);
+          console.log("Global data loaded from Firestore");
+        }
+      } catch (e) {
+        console.error("Error loading app data from Firestore", e);
+      } finally {
+        setIsLoadingConfig(false);
+      }
+    };
+
+    loadAppData();
   }, [googleUser, isAdmin]);
 
   // Auto-Pull Data once config is loaded and token is available
@@ -372,6 +382,24 @@ export default function App() {
       if (res.billingItems && res.billingItems.length > 0) {
         setBillingItems(res.billingItems);
       }
+
+      // If admin, save this data to Firestore so viewers can see it without logging in
+      if (isAdmin) {
+        try {
+          const now = new Date().toISOString();
+          await setDoc(doc(db, 'global', 'data'), {
+            transactions: res.transactions || [],
+            billingItems: res.billingItems || [],
+            projects: res.projects || [],
+            lastPulled: now
+          }, { merge: true });
+          setLastPulledAt(now);
+          console.log("Data successfully cached to global Firestore");
+        } catch (e) {
+          console.error("Error caching data to global Firestore", e);
+        }
+      }
+
       if (!silent) alert(res.message);
     } else {
       if (!silent) alert(res.message || 'ไม่สามารถดึงข้อมูลจาก Google Sheets ได้');
@@ -639,6 +667,7 @@ export default function App() {
         overdueCount={overdueCount}
         googleUser={googleUser}
         isAdmin={isAdmin}
+        lastPulledAt={lastPulledAt}
         onGoogleSignIn={handleGoogleSignIn}
         onGoogleSignOut={handleGoogleSignOut}
         incomeSheetId={incomeSheetId}

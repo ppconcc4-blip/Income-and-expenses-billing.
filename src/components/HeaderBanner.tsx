@@ -29,6 +29,7 @@ interface HeaderBannerProps {
   billingSheetId?: string | null;
   onPullFromSheets?: () => Promise<void>;
   isAdmin?: boolean;
+  lastPulledAt?: string | null;
 }
 
 export const HeaderBanner: React.FC<HeaderBannerProps> = ({
@@ -43,7 +44,8 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
   incomeSheetId,
   billingSheetId,
   onPullFromSheets,
-  isAdmin
+  isAdmin,
+  lastPulledAt
 }) => {
   const [isPulling, setIsPulling] = useState<boolean>(false);
   return (
@@ -147,7 +149,18 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
                 </a>
               )}
 
-              {onPullFromSheets && (
+            {/* Last Pulled Time Info */}
+            {lastPulledAt && (
+              <div className="flex items-center space-x-2 bg-slate-950/40 border border-slate-800 px-3 py-2 rounded-xl">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                <div className="text-[10px] text-slate-400">
+                  <span className="block font-bold text-slate-300 uppercase tracking-widest text-[8px] mb-0.5 opacity-50">Data Status</span>
+                  อัปเดตล่าสุด: {new Date(lastPulledAt).toLocaleString('th-TH')}
+                </div>
+              </div>
+            )}
+
+            {onPullFromSheets && (
                 <button
                   onClick={async () => {
                     setIsPulling(true);
