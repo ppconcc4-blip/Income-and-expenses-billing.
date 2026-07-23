@@ -222,6 +222,7 @@ export default function App() {
           
           if (catSnap.exists()) {
             const data = catSnap.data();
+            console.log("Categories data loaded:", data);
             if (data.expenseCategories) {
               setExpenseCategories(data.expenseCategories);
               localStorage.setItem('pp_expense_categories', JSON.stringify(data.expenseCategories));
@@ -230,6 +231,8 @@ export default function App() {
               setIncomeCategories(data.incomeCategories);
               localStorage.setItem('pp_income_categories', JSON.stringify(data.incomeCategories));
             }
+          } else {
+            console.log("No categories document found in Firestore.");
           }
         } catch (e) {
           console.error("Error loading config from Firestore", e);
@@ -797,6 +800,8 @@ export default function App() {
         billingSheetId={billingSheetId}
         onPullFromSheets={handlePullDataFromGoogleSheets}
         onUpdateSheetIds={handleUpdateSheetIds}
+        db={db}
+        googleUser={googleUser}
       />
 
       <BillingPdfModal

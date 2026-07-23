@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { 
   FileSpreadsheet, 
   X, 
@@ -33,6 +34,8 @@ interface GoogleSheetModalProps {
   billingSheetId?: string | null;
   onPullFromSheets?: () => Promise<void>;
   onUpdateSheetIds?: (incomeId: string, billingId: string) => void;
+  db: any;
+  googleUser: any;
 }
 
 export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
@@ -47,7 +50,9 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
   incomeSheetId,
   billingSheetId,
   onPullFromSheets,
-  onUpdateSheetIds
+  onUpdateSheetIds,
+  db,
+  googleUser
 }) => {
   const [activeTab, setActiveTab] = useState<'income' | 'billing'>('income');
   const [isExporting, setIsExporting] = useState<boolean>(false);
@@ -63,15 +68,39 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
   } | null>(null);
 
   React.useEffect(() => {
-    const savedIncome = localStorage.getItem('pp_recent_income_sheets');
-    const savedBilling = localStorage.getItem('pp_recent_billing_sheets');
-    setRecentSheets({
-      income: savedIncome ? JSON.parse(savedIncome) : (incomeSheetId ? [incomeSheetId] : []),
-      billing: savedBilling ? JSON.parse(savedBilling) : (billingSheetId ? [billingSheetId] : [])
-    });
+    const fetchRecentSheets = async () => {
+      if (googleUser) {
+        const configDoc = doc(db, 'users', googleUser.uid, 'config', 'recentSheets');
+        const docSnap = await getDoc(configDoc);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setRecentSheets({
+            income: data.income || (incomeSheetId ? [incomeSheetId] : []),
+            billing: data.billing || (billingSheetId ? [billingSheetId] : [])
+          });
+        } else {
+          // Fallback to local
+          const savedIncome = localStorage.getItem('pp_recent_income_sheets');
+          const savedBilling = localStorage.getItem('pp_recent_billing_sheets');
+          setRecentSheets({
+            income: savedIncome ? JSON.parse(savedIncome) : (incomeSheetId ? [incomeSheetId] : []),
+            billing: savedBilling ? JSON.parse(savedBilling) : (billingSheetId ? [billingSheetId] : [])
+          });
+        }
+      } else {
+        // Not logged in, use local
+        const savedIncome = localStorage.getItem('pp_recent_income_sheets');
+        const savedBilling = localStorage.getItem('pp_recent_billing_sheets');
+        setRecentSheets({
+          income: savedIncome ? JSON.parse(savedIncome) : (incomeSheetId ? [incomeSheetId] : []),
+          billing: savedBilling ? JSON.parse(savedBilling) : (billingSheetId ? [billingSheetId] : [])
+        });
+      }
+    };
+    fetchRecentSheets();
     setManualIncomeUrl(incomeSheetId || '');
     setManualBillingUrl(billingSheetId || '');
-  }, [isOpen, incomeSheetId, billingSheetId]);
+  }, [isOpen, incomeSheetId, billingSheetId, googleUser, db]);
 
   if (!isOpen) return null;
 
@@ -293,21 +322,26 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
                       onClick={() => {
                         if (onUpdateSheetIds && (manualIncomeUrl || manualBillingUrl)) {
                           onUpdateSheetIds(manualIncomeUrl, manualBillingUrl);
-                          if (manualIncomeUrl) {
-                            const key = 'pp_recent_income_sheets';
-                            const saved = localStorage.getItem(key);
-                            const list: string[] = saved ? JSON.parse(saved) : [];
-                            if (!list.includes(manualIncomeUrl)) {
-                              localStorage.setItem(key, JSON.stringify([manualIncomeUrl, ...list].slice(0, 5)));
+                          if (manualIncomeUrl || manualBillingUrl) {
+                            const newIncomeSheets = manualIncomeUrl 
+                              ? [...new Set([manualIncomeUrl, ...recentSheets.income])].slice(0, 5)
+                              : recentSheets.income;
+                            const newBillingSheets = manualBillingUrl
+                              ? [...new Set([manualBillingUrl, ...recentSheets.billing])].slice(0, 5)
+                              : recentSheets.billing;
+                            
+                            setRecentSheets({ income: newIncomeSheets, billing: newBillingSheets });
+  
+                            if (googleUser) {
+                              setDoc(doc(db, 'users', googleUser.uid, 'config', 'recentSheets'), {
+                                income: newIncomeSheets,
+                                billing: newBillingSheets
+                              }, { merge: true });
                             }
-                          }
-                          if (manualBillingUrl) {
-                            const key = 'pp_recent_billing_sheets';
-                            const saved = localStorage.getItem(key);
-                            const list: string[] = saved ? JSON.parse(saved) : [];
-                            if (!list.includes(manualBillingUrl)) {
-                              localStorage.setItem(key, JSON.stringify([manualBillingUrl, ...list].slice(0, 5)));
-                            }
+                            
+                            // Still save locally for fallback
+                            localStorage.setItem('pp_recent_income_sheets', JSON.stringify(newIncomeSheets));
+                            localStorage.setItem('pp_recent_billing_sheets', JSON.stringify(newBillingSheets));
                           }
                           setCreateMsg({ success: true, msg: 'อัปเดตลิงก์ Google Sheet สำเร็จแล้ว!' });
                         }
@@ -368,23 +402,28 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
                     onClick={() => {
                       if (onUpdateSheetIds && (manualIncomeUrl || manualBillingUrl)) {
                         onUpdateSheetIds(manualIncomeUrl, manualBillingUrl);
-                        if (manualIncomeUrl) {
-                            const key = 'pp_recent_income_sheets';
-                            const saved = localStorage.getItem(key);
-                            const list: string[] = saved ? JSON.parse(saved) : [];
-                            if (!list.includes(manualIncomeUrl)) {
-                              localStorage.setItem(key, JSON.stringify([manualIncomeUrl, ...list].slice(0, 5)));
-                            }
+                        if (manualIncomeUrl || manualBillingUrl) {
+                          const newIncomeSheets = manualIncomeUrl 
+                            ? [...new Set([manualIncomeUrl, ...recentSheets.income])].slice(0, 5)
+                            : recentSheets.income;
+                          const newBillingSheets = manualBillingUrl
+                            ? [...new Set([manualBillingUrl, ...recentSheets.billing])].slice(0, 5)
+                            : recentSheets.billing;
+                          
+                          setRecentSheets({ income: newIncomeSheets, billing: newBillingSheets });
+
+                          if (googleUser) {
+                            setDoc(doc(db, 'users', googleUser.uid, 'config', 'recentSheets'), {
+                              income: newIncomeSheets,
+                              billing: newBillingSheets
+                            }, { merge: true });
                           }
-                          if (manualBillingUrl) {
-                            const key = 'pp_recent_billing_sheets';
-                            const saved = localStorage.getItem(key);
-                            const list: string[] = saved ? JSON.parse(saved) : [];
-                            if (!list.includes(manualBillingUrl)) {
-                              localStorage.setItem(key, JSON.stringify([manualBillingUrl, ...list].slice(0, 5)));
-                            }
-                          }
-                        setCreateMsg({ success: true, msg: 'เชื่อมต่อ Google Sheet เดิมสำเร็จแล้ว!' });
+                          
+                          // Still save locally for fallback
+                          localStorage.setItem('pp_recent_income_sheets', JSON.stringify(newIncomeSheets));
+                          localStorage.setItem('pp_recent_billing_sheets', JSON.stringify(newBillingSheets));
+                        }
+                        setCreateMsg({ success: true, msg: 'อัปเดตลิงก์ Google Sheet สำเร็จแล้ว!' });
                       }
                     }}
                     className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 rounded-lg text-xs transition-all"
