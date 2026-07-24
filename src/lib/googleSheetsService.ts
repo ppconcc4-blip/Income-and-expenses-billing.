@@ -896,7 +896,7 @@ export async function pullDataFromGoogleSheets(
   try {
     const newTransactions: Transaction[] = [];
     const newBillingItems: BillingItem[] = [];
-    const updatedProjects: Project[] = [...projects];
+    const updatedProjects: Project[] = [];
 
     const getOrCreateProject = (tabName: string, projCode?: string) => {
       const identifier = projCode || tabName;
@@ -930,68 +930,71 @@ export async function pullDataFromGoogleSheets(
 
     // 0. Pull Project Details Tab if exists in incomeSheetId or billingSheetId
     const pullProjectDetailsFromSheet = async (sheetId: string) => {
-      try {
-        const valRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/'รายละเอียดโครงการ'!A2:J1000`, {
-          headers: { 'Authorization': `Bearer ${accessToken}` }
-        });
-        if (valRes.ok) {
-          const valData = await valRes.json();
-          const rows: any[][] = valData.values || [];
-          for (const row of rows) {
-            if (!row || row.length === 0 || !row[0]) continue;
-            const code = row[0] || '';
-            const name = row[1] || '';
-            if (!name) continue;
-            const clientName = row[2] || 'ลูกค้าทั่วไป';
-            const contractValue = parseFloat(String(row[3] || '0').replace(/,/g, '')) || 0;
-            const budget = parseFloat(String(row[4] || '0').replace(/,/g, '')) || 0;
-            const startDate = row[5] || new Date().toISOString().split('T')[0];
-            const endDate = row[6] || new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0];
-            const statusStr = String(row[7] || '').toLowerCase();
-            const status: 'active' | 'completed' = statusStr.includes('เสร็จ') || statusStr.includes('completed') ? 'completed' : 'active';
-            const drawingDriveId = row[8] || '';
-            const boqDriveId = row[9] || '';
+      const candidateTabs = ['รายละเอียดโครงการ', 'ข้อมูลโครงการ', 'Projects'];
+      for (const tabName of candidateTabs) {
+        try {
+          const valRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/'${encodeURIComponent(tabName)}'!A2:J1000`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          });
+          if (valRes.ok) {
+            const valData = await valRes.json();
+            const rows: any[][] = valData.values || [];
+            for (const row of rows) {
+              if (!row || row.length === 0 || (!row[0] && !row[1])) continue;
+              const code = row[0] || '';
+              const name = row[1] || row[0] || '';
+              if (!name) continue;
+              const clientName = row[2] || 'ลูกค้าทั่วไป';
+              const contractValue = parseFloat(String(row[3] || '0').replace(/,/g, '')) || 0;
+              const budget = parseFloat(String(row[4] || '0').replace(/,/g, '')) || 0;
+              const startDate = row[5] || new Date().toISOString().split('T')[0];
+              const endDate = row[6] || new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0];
+              const statusStr = String(row[7] || '').toLowerCase();
+              const status: 'active' | 'completed' = statusStr.includes('เสร็จ') || statusStr.includes('completed') ? 'completed' : 'active';
+              const drawingDriveId = row[8] || '';
+              const boqDriveId = row[9] || '';
 
-            const existingIdx = updatedProjects.findIndex(p => p.code.toLowerCase() === code.toLowerCase() || p.name.toLowerCase() === name.toLowerCase());
-            if (existingIdx >= 0) {
-              updatedProjects[existingIdx] = {
-                ...updatedProjects[existingIdx],
-                code: code || updatedProjects[existingIdx].code,
-                name: name || updatedProjects[existingIdx].name,
-                clientName: clientName || updatedProjects[existingIdx].clientName,
-                contractValue: contractValue || updatedProjects[existingIdx].contractValue,
-                budget: budget || updatedProjects[existingIdx].budget,
-                startDate: startDate || updatedProjects[existingIdx].startDate,
-                endDate: endDate || updatedProjects[existingIdx].endDate,
-                status: status || updatedProjects[existingIdx].status,
-                drawingDriveId: drawingDriveId || updatedProjects[existingIdx].drawingDriveId,
-                boqDriveId: boqDriveId || updatedProjects[existingIdx].boqDriveId,
-                sheetUrlIncome: incomeSheetId ? `https://docs.google.com/spreadsheets/d/${incomeSheetId}/edit` : updatedProjects[existingIdx].sheetUrlIncome,
-                sheetUrlBilling: billingSheetId ? `https://docs.google.com/spreadsheets/d/${billingSheetId}/edit` : updatedProjects[existingIdx].sheetUrlBilling,
-                sheetTabName: name
-              };
-            } else {
-              updatedProjects.push({
-                id: `proj-sheet-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-                code: code || `P-${Math.floor(100 + updatedProjects.length)}`,
-                name: name,
-                clientName: clientName,
-                contractValue: contractValue,
-                budget: budget,
-                startDate: startDate,
-                endDate: endDate,
-                status: status,
-                drawingDriveId: drawingDriveId,
-                boqDriveId: boqDriveId,
-                sheetUrlIncome: incomeSheetId ? `https://docs.google.com/spreadsheets/d/${incomeSheetId}/edit` : '',
-                sheetUrlBilling: billingSheetId ? `https://docs.google.com/spreadsheets/d/${billingSheetId}/edit` : '',
-                sheetTabName: name
-              });
+              const existingIdx = updatedProjects.findIndex(p => p.code.toLowerCase() === code.toLowerCase() || p.name.toLowerCase() === name.toLowerCase());
+              if (existingIdx >= 0) {
+                updatedProjects[existingIdx] = {
+                  ...updatedProjects[existingIdx],
+                  code: code || updatedProjects[existingIdx].code,
+                  name: name || updatedProjects[existingIdx].name,
+                  clientName: clientName || updatedProjects[existingIdx].clientName,
+                  contractValue: contractValue || updatedProjects[existingIdx].contractValue,
+                  budget: budget || updatedProjects[existingIdx].budget,
+                  startDate: startDate || updatedProjects[existingIdx].startDate,
+                  endDate: endDate || updatedProjects[existingIdx].endDate,
+                  status: status || updatedProjects[existingIdx].status,
+                  drawingDriveId: drawingDriveId || updatedProjects[existingIdx].drawingDriveId,
+                  boqDriveId: boqDriveId || updatedProjects[existingIdx].boqDriveId,
+                  sheetUrlIncome: incomeSheetId ? `https://docs.google.com/spreadsheets/d/${incomeSheetId}/edit` : updatedProjects[existingIdx].sheetUrlIncome,
+                  sheetUrlBilling: billingSheetId ? `https://docs.google.com/spreadsheets/d/${billingSheetId}/edit` : updatedProjects[existingIdx].sheetUrlBilling,
+                  sheetTabName: name
+                };
+              } else {
+                updatedProjects.push({
+                  id: `proj-sheet-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                  code: code || `P-${Math.floor(100 + updatedProjects.length)}`,
+                  name: name,
+                  clientName: clientName,
+                  contractValue: contractValue,
+                  budget: budget,
+                  startDate: startDate,
+                  endDate: endDate,
+                  status: status,
+                  drawingDriveId: drawingDriveId,
+                  boqDriveId: boqDriveId,
+                  sheetUrlIncome: incomeSheetId ? `https://docs.google.com/spreadsheets/d/${incomeSheetId}/edit` : '',
+                  sheetUrlBilling: billingSheetId ? `https://docs.google.com/spreadsheets/d/${billingSheetId}/edit` : '',
+                  sheetTabName: name
+                });
+              }
             }
           }
+        } catch (e) {
+          console.warn('Pull project details tab warning:', e);
         }
-      } catch (e) {
-        console.warn('Pull project details tab warning:', e);
       }
     };
 

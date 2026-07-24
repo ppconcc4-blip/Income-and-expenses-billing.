@@ -410,15 +410,15 @@ export default function App() {
 
     const res = await pullDataFromGoogleSheets(token, targetIncomeId, targetBillingId, projects);
     if (res.success) {
-      if (res.projects && res.projects.length > 0) {
-        setProjects(res.projects);
-        localStorage.setItem('pp_projects', JSON.stringify(res.projects));
+      if (res.projects) {
+        setProjects(res.projects.length > 0 ? res.projects : projects);
+        localStorage.setItem('pp_projects', JSON.stringify(res.projects.length > 0 ? res.projects : projects));
       }
-      if (res.transactions && res.transactions.length > 0) {
+      if (res.transactions) {
         setTransactions(res.transactions);
         localStorage.setItem('pp_transactions', JSON.stringify(res.transactions));
       }
-      if (res.billingItems && res.billingItems.length > 0) {
+      if (res.billingItems) {
         setBillingItems(res.billingItems);
         localStorage.setItem('pp_billing', JSON.stringify(res.billingItems));
       }

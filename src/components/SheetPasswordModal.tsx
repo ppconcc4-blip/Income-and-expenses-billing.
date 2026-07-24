@@ -35,7 +35,7 @@ export const SheetPasswordModal: React.FC<SheetPasswordModalProps> = ({
         setIsLoading(false);
       }
     } else {
-      setError('รหัสผ่านไม่ถูกต้อง! กรุณากรอกรหัสผ่าน pp37');
+      setError('รหัสผ่านไม่ถูกต้อง! กรุณาลองใหม่อีกครั้ง');
     }
   };
 
@@ -80,12 +80,12 @@ export const SheetPasswordModal: React.FC<SheetPasswordModalProps> = ({
                 setPassword(e.target.value);
                 if (error) setError(null);
               }}
-              placeholder="กรอกรหัสผ่าน pp37"
+              placeholder="กรอกรหัสผ่าน"
               autoFocus
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-mono tracking-wider"
             />
             <p className="text-[11px] text-amber-400/80 mt-1">
-              * ต้องใส่รหัสผ่าน <span className="font-bold underline">pp37</span> เพื่อปลดล็อกการโหลดข้อมูลจากทุกชีต
+              * กรุณากรอกรหัสผ่านเพื่อปลดล็อกการโหลดข้อมูลจากทุกชีต
             </p>
           </div>
 
