@@ -51,7 +51,8 @@ import {
   deleteTransactionInSheet, 
   deleteBillingInSheet,
   pullDataFromGoogleSheets,
-  extractSpreadsheetId
+  extractSpreadsheetId,
+  createNewGoogleSheet
 } from './lib/googleSheetsService';
 
 const DEFAULT_EXPENSE_CATS = [
@@ -376,11 +377,59 @@ export default function App() {
       return;
     }
 
-    const targetIncomeId = incomeSheetId || localStorage.getItem('pp_income_sheet_id');
-    const targetBillingId = billingSheetId || localStorage.getItem('pp_billing_sheet_id');
+    let targetIncomeId = incomeSheetId || localStorage.getItem('pp_income_sheet_id');
+    let targetBillingId = billingSheetId || localStorage.getItem('pp_billing_sheet_id');
+
+    // 1. If Sheet ID is missing, try auto-discovering existing Spreadsheets in user's Google Drive
+    if (!targetIncomeId && !targetBillingId) {
+      try {
+        const driveRes = await fetch(
+          "https://www.googleapis.com/drive/v3/files?q=mimeType='application/vnd.google-apps.spreadsheet'%20and%20trashed=false&orderBy=modifiedTime%20desc&pageSize=5",
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        if (driveRes.ok) {
+          const driveData = await driveRes.json();
+          if (driveData.files && driveData.files.length > 0) {
+            const foundId = driveData.files[0].id;
+            targetIncomeId = foundId;
+            targetBillingId = foundId;
+            setIncomeSheetId(foundId);
+            setBillingSheetId(foundId);
+            localStorage.setItem('pp_income_sheet_id', foundId);
+            localStorage.setItem('pp_billing_sheet_id', foundId);
+            if (isAdmin) {
+              setDoc(doc(db, 'global', 'config'), { incomeSheetId: foundId, billingSheetId: foundId }, { merge: true });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Auto-discover Google Sheet error:", err);
+      }
+    }
+
+    // 2. If still missing, auto-create a default Google Sheet in Drive automatically
+    if (!targetIncomeId && !targetBillingId) {
+      try {
+        const createRes = await createNewGoogleSheet(token, 'PP Concrete & Construction Data');
+        if (createRes.success && createRes.spreadsheetId) {
+          const newId = createRes.spreadsheetId;
+          targetIncomeId = newId;
+          targetBillingId = newId;
+          setIncomeSheetId(newId);
+          setBillingSheetId(newId);
+          localStorage.setItem('pp_income_sheet_id', newId);
+          localStorage.setItem('pp_billing_sheet_id', newId);
+          if (isAdmin) {
+            setDoc(doc(db, 'global', 'config'), { incomeSheetId: newId, billingSheetId: newId }, { merge: true });
+          }
+        }
+      } catch (err) {
+        console.warn("Auto-create Google Sheet error:", err);
+      }
+    }
 
     if (!targetIncomeId && !targetBillingId) {
-      if (!silent) alert('ยังไม่มีการเชื่อมต่อกับ Google Sheet กรุณากด "เปิดดูตัวอย่างชีต" หรือเลือกเชื่อมต่อ Google Sheets ก่อน');
+      if (!silent) alert('ไม่พบ Google Sheet ในบัญชีของคุณ กรุณาตรวจสอบการเข้าถึง Google Drive');
       return;
     }
 
