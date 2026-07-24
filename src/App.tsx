@@ -611,8 +611,21 @@ export default function App() {
       
       {/* 1. Top Header Banner with Company Logo */}
       <HeaderBanner
-        onOpenMobileForm={() => { setMobileFormInitialTab('expense'); setIsMobileFormOpen(true); }}
-        onOpenNewProject={() => setIsNewProjectModalOpen(true)}
+        onOpenMobileForm={() => {
+          if (!googleUser) {
+            alert('กรุณาลอคอินก่อนบันทึกรายการ');
+            return;
+          }
+          setMobileFormInitialTab('expense'); 
+          setIsMobileFormOpen(true);
+        }}
+        onOpenNewProject={() => {
+          if (!googleUser) {
+            alert('กรุณาลอคอินก่อนเพิ่มโครงการ');
+            return;
+          }
+          setIsNewProjectModalOpen(true);
+        }}
         onOpenCategoryManager={() => setIsCategoryManagerOpen(true)}
         overdueCount={overdueCount}
         googleUser={googleUser}
@@ -743,7 +756,14 @@ export default function App() {
             transactions={activeTransactions}
             projects={activeProjects}
             onDeleteTransaction={handleDeleteTransaction}
-            onOpenMobileForm={() => { setMobileFormInitialTab('expense'); setIsMobileFormOpen(true); }}
+            onOpenMobileForm={() => {
+              if (!googleUser) {
+                alert('กรุณาลอคอินก่อนบันทึกรายการ');
+                return;
+              }
+              setMobileFormInitialTab('expense'); 
+              setIsMobileFormOpen(true);
+            }}
             onOpenPdfModal={() => setIsTxPdfModalOpen(true)}
             isAdmin={isAdmin}
           />
@@ -784,7 +804,14 @@ export default function App() {
       {/* Mobile Floating Action Button (FAB) */}
       <div className="fixed bottom-5 right-5 sm:hidden z-40">
         <button
-          onClick={() => { setMobileFormInitialTab('expense'); setIsMobileFormOpen(true); }}
+          onClick={() => {
+            if (!googleUser) {
+              alert('กรุณาลอคอินก่อนบันทึกรายการ');
+              return;
+            }
+            setMobileFormInitialTab('expense'); 
+            setIsMobileFormOpen(true);
+          }}
           className="bg-amber-400 hover:bg-amber-300 text-slate-950 p-4 rounded-full shadow-2xl shadow-amber-400/40 border-2 border-slate-950 flex items-center justify-center active:scale-90 transition-transform"
           title="บันทึกรายการใหม่"
         >
