@@ -134,8 +134,8 @@ export default function App() {
   });
 
   // Google Folder Sheets Tracking
-  const [incomeSheetId, setIncomeSheetId] = useState<string | null>(() => localStorage.getItem('pp_income_sheet_id'));
-  const [billingSheetId, setBillingSheetId] = useState<string | null>(() => localStorage.getItem('pp_billing_sheet_id'));
+  const [incomeSheetId, setIncomeSheetId] = useState<string | null>(() => localStorage.getItem('pp_income_sheet_id') || '1JKh7fbbfp2X9Ws5aPJKS-JQ_7kOi4TBXSJJlJBDHZsQ');
+  const [billingSheetId, setBillingSheetId] = useState<string | null>(() => localStorage.getItem('pp_billing_sheet_id') || '1JKh7fbbfp2X9Ws5aPJKS-JQ_7kOi4TBXSJJlJBDHZsQ');
 
   // Modal States
   const [isMobileFormOpen, setIsMobileFormOpen] = useState<boolean>(false);
@@ -277,15 +277,29 @@ export default function App() {
     loadConfig();
   }, [googleUser, isAdmin]);
 
+  // Reset auto-pull state when user account changes
+  useEffect(() => {
+    if (googleUser) {
+      setHasAutoPulled(false);
+    }
+  }, [googleUser?.uid]);
+
   // Auto-Pull Data once config is loaded and token is available
   const [hasAutoPulled, setHasAutoPulled] = useState(false);
   useEffect(() => {
-    if (!isLoadingConfig && (incomeSheetId || billingSheetId) && googleAccessToken && !hasAutoPulled) {
+    if (!isLoadingConfig && googleAccessToken && !hasAutoPulled) {
       console.log("Auto-pulling data from Google Sheets...");
       setHasAutoPulled(true);
-      handlePullDataFromGoogleSheets(true); // Silent pull on load
+      
+      const targetIncomeId = incomeSheetId || '1JKh7fbbfp2X9Ws5aPJKS-JQ_7kOi4TBXSJJlJBDHZsQ';
+      const targetBillingId = billingSheetId || '1JKh7fbbfp2X9Ws5aPJKS-JQ_7kOi4TBXSJJlJBDHZsQ';
+
+      if (!incomeSheetId) setIncomeSheetId(targetIncomeId);
+      if (!billingSheetId) setBillingSheetId(targetBillingId);
+
+      handlePullDataFromGoogleSheets(true); // Silent pull on load / login
     }
-  }, [isLoadingConfig, incomeSheetId, billingSheetId, googleAccessToken, hasAutoPulled]);
+  }, [isLoadingConfig, incomeSheetId, billingSheetId, googleAccessToken, hasAutoPulled, googleUser]);
 
   // Category Management Handlers
   const handleAddCategory = (type: 'income' | 'expense', name: string) => {

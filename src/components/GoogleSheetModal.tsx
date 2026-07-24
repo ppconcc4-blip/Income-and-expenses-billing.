@@ -94,8 +94,8 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
       });
     };
     fetchRecentSheets();
-    setManualIncomeUrl(incomeSheetId || '');
-    setManualBillingUrl(billingSheetId || '');
+    setManualIncomeUrl(incomeSheetId || '1JKh7fbbfp2X9Ws5aPJKS-JQ_7kOi4TBXSJJlJBDHZsQ');
+    setManualBillingUrl(billingSheetId || '1JKh7fbbfp2X9Ws5aPJKS-JQ_7kOi4TBXSJJlJBDHZsQ');
   }, [isOpen, incomeSheetId, billingSheetId, googleUser, db]);
 
   if (!isOpen) return null;

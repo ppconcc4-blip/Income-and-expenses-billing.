@@ -57,7 +57,7 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
     if (googleUser && sheetUrl) {
       handleFetchData(true);
     }
-  }, [selectedMonth, selectedYear, selectedPeriod]);
+  }, [googleUser, sheetUrl, selectedMonth, selectedYear, selectedPeriod]);
 
   const updateWageInSheet = async (rowIndex: number, wage: number) => {
     if (!googleUser || !sheetUrl) return;
@@ -113,10 +113,29 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
         return;
       }
 
-      let empRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Employees!A:H`, {
+      let empTabName = 'Employees';
+      let attTabName = 'Sheet1';
+
+      try {
+        const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (metaRes.ok) {
+          const metaData = await metaRes.json();
+          const sheetTitles: string[] = (metaData.sheets || []).map((s: any) => s.properties?.title).filter(Boolean);
+          const foundEmp = sheetTitles.find(t => /employee|พนักงาน|รายชื่อ|คนงาน|ค่าแรง/i.test(t));
+          if (foundEmp) empTabName = foundEmp;
+          const foundAtt = sheetTitles.find(t => /sheet1|attendance|เข้างาน|เวลาทำงาน|ลงเวลา/i.test(t));
+          if (foundAtt) attTabName = foundAtt;
+        }
+      } catch (e) {
+        console.warn("Could not fetch sheet metadata for LaborWagesManager, defaulting to Employees and Sheet1:", e);
+      }
+
+      let empRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(empTabName)}'!A:H`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      let attRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A:H`, {
+      let attRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(attTabName)}'!A:H`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -128,10 +147,10 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
           const authRes = await googleSignIn();
           if (authRes?.accessToken) {
             token = authRes.accessToken;
-            empRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Employees!A:H`, {
+            empRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(empTabName)}'!A:H`, {
               headers: { Authorization: `Bearer ${token}` }
             });
-            attRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A:H`, {
+            attRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(attTabName)}'!A:H`, {
               headers: { Authorization: `Bearer ${token}` }
             });
           }
@@ -143,7 +162,7 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
       if (!empRes.ok || !attRes.ok) {
         const empErr = !empRes.ok ? await empRes.json().catch(() => ({})) : {};
         const attErr = !attRes.ok ? await attRes.json().catch(() => ({})) : {};
-        const msg = empErr.error?.message || attErr.error?.message || 'ไม่สามารถดึงข้อมูลได้ กรุณาตรวจสอบสิทธิ์การเข้าถึง Google Sheet หรือชื่อชีต (Employees และ Sheet1)';
+        const msg = empErr.error?.message || attErr.error?.message || `ไม่สามารถดึงข้อมูลได้ กรุณาตรวจสอบสิทธิ์การเข้าถึง Google Sheet หรือชื่อชีต (${empTabName} และ ${attTabName})`;
         throw new Error(msg);
       }
 

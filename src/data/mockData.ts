@@ -1,7 +1,9 @@
 import { Project, Transaction, BillingItem } from '../types';
 
-export const DEFAULT_SHEET_INCOME = '';
-export const DEFAULT_SHEET_BILLING = '';
+export const DEFAULT_SHEET_ID = '1JKh7fbbfp2X9Ws5aPJKS-JQ_7kOi4TBXSJJlJBDHZsQ';
+export const DEFAULT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1JKh7fbbfp2X9Ws5aPJKS-JQ_7kOi4TBXSJJlJBDHZsQ/edit?usp=drive_link';
+export const DEFAULT_SHEET_INCOME = DEFAULT_SHEET_URL;
+export const DEFAULT_SHEET_BILLING = DEFAULT_SHEET_URL;
 
 export const INITIAL_PROJECTS: Project[] = [
   {
