@@ -39,6 +39,7 @@ import { GoogleSheetModal } from './components/GoogleSheetModal';
 import { CategoryManagerModal } from './components/CategoryManagerModal';
 import { BillingPdfModal } from './components/BillingPdfModal';
 import { TransactionPdfModal } from './components/TransactionPdfModal';
+import { SheetPasswordModal } from './components/SheetPasswordModal';
 import { initAuth, googleSignIn, logoutGoogle, getAccessToken, db } from './lib/firebase';
 import { 
   autoSyncTransactionToSheet, 
@@ -134,8 +135,8 @@ export default function App() {
   });
 
   // Google Folder Sheets Tracking
-  const [incomeSheetId, setIncomeSheetId] = useState<string | null>(() => localStorage.getItem('pp_income_sheet_id') || '1JKh7fbbfp2X9Ws5aPJKS-JQ_7kOi4TBXSJJlJBDHZsQ');
-  const [billingSheetId, setBillingSheetId] = useState<string | null>(() => localStorage.getItem('pp_billing_sheet_id') || '1JKh7fbbfp2X9Ws5aPJKS-JQ_7kOi4TBXSJJlJBDHZsQ');
+  const [incomeSheetId, setIncomeSheetId] = useState<string | null>(() => localStorage.getItem('pp_income_sheet_id'));
+  const [billingSheetId, setBillingSheetId] = useState<string | null>(() => localStorage.getItem('pp_billing_sheet_id'));
 
   // Modal States
   const [isMobileFormOpen, setIsMobileFormOpen] = useState<boolean>(false);
@@ -145,6 +146,7 @@ export default function App() {
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState<boolean>(false);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
   const [isTxPdfModalOpen, setIsTxPdfModalOpen] = useState<boolean>(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState<boolean>(false);
   const [selectedBillingForPdf, setSelectedBillingForPdf] = useState<BillingItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(true);
@@ -277,29 +279,15 @@ export default function App() {
     loadConfig();
   }, [googleUser, isAdmin]);
 
-  // Reset auto-pull state when user account changes
-  useEffect(() => {
-    if (googleUser) {
-      setHasAutoPulled(false);
-    }
-  }, [googleUser?.uid]);
-
   // Auto-Pull Data once config is loaded and token is available
   const [hasAutoPulled, setHasAutoPulled] = useState(false);
   useEffect(() => {
-    if (!isLoadingConfig && googleAccessToken && !hasAutoPulled) {
+    if (!isLoadingConfig && (incomeSheetId || billingSheetId) && googleAccessToken && !hasAutoPulled) {
       console.log("Auto-pulling data from Google Sheets...");
       setHasAutoPulled(true);
-      
-      const targetIncomeId = incomeSheetId || '1JKh7fbbfp2X9Ws5aPJKS-JQ_7kOi4TBXSJJlJBDHZsQ';
-      const targetBillingId = billingSheetId || '1JKh7fbbfp2X9Ws5aPJKS-JQ_7kOi4TBXSJJlJBDHZsQ';
-
-      if (!incomeSheetId) setIncomeSheetId(targetIncomeId);
-      if (!billingSheetId) setBillingSheetId(targetBillingId);
-
-      handlePullDataFromGoogleSheets(true); // Silent pull on load / login
+      handlePullDataFromGoogleSheets(true); // Silent pull on load
     }
-  }, [isLoadingConfig, incomeSheetId, billingSheetId, googleAccessToken, hasAutoPulled, googleUser]);
+  }, [isLoadingConfig, incomeSheetId, billingSheetId, googleAccessToken, hasAutoPulled]);
 
   // Category Management Handlers
   const handleAddCategory = (type: 'income' | 'expense', name: string) => {
@@ -377,8 +365,11 @@ export default function App() {
   const handlePullDataFromGoogleSheets = async (silent = false) => {
     let token = googleAccessToken;
     if (!token) {
+      token = getAccessToken() || localStorage.getItem('google_access_token');
+    }
+    if (!token) {
       if (!silent) await handleGoogleSignIn();
-      token = localStorage.getItem('google_access_token');
+      token = googleAccessToken || localStorage.getItem('google_access_token');
     }
     if (!token) {
       if (!silent) alert('กรุณาเข้าสู่ระบบด้วย Google เพื่อดึงข้อมูลจาก Google Sheets');
@@ -406,10 +397,25 @@ export default function App() {
         setBillingItems(res.billingItems);
       }
 
-      if (!silent) alert(res.message);
+      const nowStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+      setLastPulledAt(nowStr);
+
+      if (!silent) {
+        setToastMessage(`ดึงข้อมูลสำเร็จ! แสดงรายการปัจจุบันแล้ว`);
+        alert(res.message);
+      }
     } else {
       if (!silent) alert(res.message || 'ไม่สามารถดึงข้อมูลจาก Google Sheets ได้');
     }
+  };
+
+  // Trigger password prompt before pulling data from sheets
+  const handleTriggerPullFromSheets = () => {
+    if (!googleUser) {
+      alert('กรุณาเข้าสู่ระบบด้วย Google ก่อนดึงข้อมูลจาก Google Sheets');
+      return;
+    }
+    setIsPasswordModalOpen(true);
   };
 
   const handleUpdateSheetIds = (incomeInput: string, billingInput: string) => {
@@ -667,7 +673,7 @@ export default function App() {
         onGoogleSignOut={handleGoogleSignOut}
         incomeSheetId={incomeSheetId}
         billingSheetId={billingSheetId}
-        onPullFromSheets={handlePullDataFromGoogleSheets}
+        onPullFromSheets={handleTriggerPullFromSheets}
         onOpenTxPdfModal={() => setIsTxPdfModalOpen(true)}
       />
 
@@ -918,10 +924,18 @@ export default function App() {
         onSheetsCreated={handleSheetsCreated}
         incomeSheetId={incomeSheetId}
         billingSheetId={billingSheetId}
-        onPullFromSheets={handlePullDataFromGoogleSheets}
+        onPullFromSheets={handleTriggerPullFromSheets}
         onUpdateSheetIds={handleUpdateSheetIds}
         db={db}
         googleUser={googleUser}
+      />
+
+      <SheetPasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+        onConfirmSuccess={async () => {
+          await handlePullDataFromGoogleSheets(false);
+        }}
       />
 
       <BillingPdfModal

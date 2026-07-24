@@ -896,27 +896,9 @@ export async function pullDataFromGoogleSheets(
   try {
     const newTransactions: Transaction[] = [];
     const newBillingItems: BillingItem[] = [];
-    let updatedProjects: Project[] = [...projects];
-    let hasOfficialProjectsFromSheet = false;
-
-    const metaTabNames = [
-      'รายละเอียดโครงการ', 'ข้อมูลโครงการ', 'Projects', 'projects',
-      'รายรับรายจ่าย', 'การวางบิล', 'Sheet1', 'sheet1',
-      'Employees', 'employees', 'พนักงาน', 'รายชื่อพนักงาน', 'คนงาน', 'รายนามคนงาน', 'ข้อมูลพนักงาน', 'ค่าแรง', 'เวลาทำงาน', 'เข้างาน'
-    ];
-
-    const isWorkerOrMetaName = (name: string) => {
-      if (!name) return true;
-      const lower = name.toLowerCase().trim();
-      return metaTabNames.some(m => m.toLowerCase() === lower) ||
-             /employee|พนักงาน|คนงาน|รายชื่อ|ค่าแรง|เวลาทำงาน|เข้างาน/i.test(lower);
-    };
+    const updatedProjects: Project[] = [...projects];
 
     const getOrCreateProject = (tabName: string, projCode?: string) => {
-      if (isWorkerOrMetaName(tabName)) {
-        return updatedProjects.find(p => !isWorkerOrMetaName(p.name)) || updatedProjects[0];
-      }
-
       const identifier = projCode || tabName;
       let existing = updatedProjects.find(
         p => (projCode && p.code.toLowerCase() === projCode.toLowerCase()) || 
@@ -924,12 +906,7 @@ export async function pullDataFromGoogleSheets(
              p.id === identifier || 
              p.sheetTabName === tabName
       );
-
       if (!existing) {
-        if (hasOfficialProjectsFromSheet && updatedProjects.length > 0) {
-          return updatedProjects.find(p => projCode && p.code.toLowerCase() === projCode.toLowerCase()) || updatedProjects[0];
-        }
-
         const isGeneric = ['รายรับรายจ่าย', 'การวางบิล', 'Sheet1', 'sheet1', 'รายรับ', 'รายจ่าย'].includes(tabName);
         const newProj: Project = {
           id: `proj-sheet-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -960,14 +937,11 @@ export async function pullDataFromGoogleSheets(
         if (valRes.ok) {
           const valData = await valRes.json();
           const rows: any[][] = valData.values || [];
-          const sheetProjects: Project[] = [];
           for (const row of rows) {
-            if (!row || row.length === 0) continue;
-            const code = (row[0] || '').trim();
-            const name = (row[1] || '').trim();
-            if (!name && !code) continue;
-
-            const projName = name || code;
+            if (!row || row.length === 0 || !row[0]) continue;
+            const code = row[0] || '';
+            const name = row[1] || '';
+            if (!name) continue;
             const clientName = row[2] || 'ลูกค้าทั่วไป';
             const contractValue = parseFloat(String(row[3] || '0').replace(/,/g, '')) || 0;
             const budget = parseFloat(String(row[4] || '0').replace(/,/g, '')) || 0;
@@ -978,27 +952,42 @@ export async function pullDataFromGoogleSheets(
             const drawingDriveId = row[8] || '';
             const boqDriveId = row[9] || '';
 
-            sheetProjects.push({
-              id: `proj-sheet-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-              code: code || `P-${Math.floor(100 + sheetProjects.length)}`,
-              name: projName,
-              clientName: clientName,
-              contractValue: contractValue,
-              budget: budget,
-              startDate: startDate,
-              endDate: endDate,
-              status: status,
-              drawingDriveId: drawingDriveId,
-              boqDriveId: boqDriveId,
-              sheetUrlIncome: incomeSheetId ? `https://docs.google.com/spreadsheets/d/${incomeSheetId}/edit` : '',
-              sheetUrlBilling: billingSheetId ? `https://docs.google.com/spreadsheets/d/${billingSheetId}/edit` : '',
-              sheetTabName: projName
-            });
-          }
-
-          if (sheetProjects.length > 0) {
-            updatedProjects = sheetProjects;
-            hasOfficialProjectsFromSheet = true;
+            const existingIdx = updatedProjects.findIndex(p => p.code.toLowerCase() === code.toLowerCase() || p.name.toLowerCase() === name.toLowerCase());
+            if (existingIdx >= 0) {
+              updatedProjects[existingIdx] = {
+                ...updatedProjects[existingIdx],
+                code: code || updatedProjects[existingIdx].code,
+                name: name || updatedProjects[existingIdx].name,
+                clientName: clientName || updatedProjects[existingIdx].clientName,
+                contractValue: contractValue || updatedProjects[existingIdx].contractValue,
+                budget: budget || updatedProjects[existingIdx].budget,
+                startDate: startDate || updatedProjects[existingIdx].startDate,
+                endDate: endDate || updatedProjects[existingIdx].endDate,
+                status: status || updatedProjects[existingIdx].status,
+                drawingDriveId: drawingDriveId || updatedProjects[existingIdx].drawingDriveId,
+                boqDriveId: boqDriveId || updatedProjects[existingIdx].boqDriveId,
+                sheetUrlIncome: incomeSheetId ? `https://docs.google.com/spreadsheets/d/${incomeSheetId}/edit` : updatedProjects[existingIdx].sheetUrlIncome,
+                sheetUrlBilling: billingSheetId ? `https://docs.google.com/spreadsheets/d/${billingSheetId}/edit` : updatedProjects[existingIdx].sheetUrlBilling,
+                sheetTabName: name
+              };
+            } else {
+              updatedProjects.push({
+                id: `proj-sheet-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                code: code || `P-${Math.floor(100 + updatedProjects.length)}`,
+                name: name,
+                clientName: clientName,
+                contractValue: contractValue,
+                budget: budget,
+                startDate: startDate,
+                endDate: endDate,
+                status: status,
+                drawingDriveId: drawingDriveId,
+                boqDriveId: boqDriveId,
+                sheetUrlIncome: incomeSheetId ? `https://docs.google.com/spreadsheets/d/${incomeSheetId}/edit` : '',
+                sheetUrlBilling: billingSheetId ? `https://docs.google.com/spreadsheets/d/${billingSheetId}/edit` : '',
+                sheetTabName: name
+              });
+            }
           }
         }
       } catch (e) {
@@ -1013,6 +1002,8 @@ export async function pullDataFromGoogleSheets(
       await pullProjectDetailsFromSheet(billingSheetId);
     }
 
+    const metaTabNames = ['รายละเอียดโครงการ', 'ข้อมูลโครงการ', 'Projects'];
+
     // 1. Pull Transactions
     if (incomeSheetId) {
       const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${incomeSheetId}`, {
@@ -1024,7 +1015,7 @@ export async function pullDataFromGoogleSheets(
         for (const s of sheets) {
           const tabName = s.properties?.title;
           if (!tabName) continue;
-          if (isWorkerOrMetaName(tabName)) continue;
+          if (metaTabNames.includes(tabName)) continue;
           
           const valRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${incomeSheetId}/values/'${encodeURIComponent(tabName)}'!A2:I1000`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
@@ -1033,6 +1024,7 @@ export async function pullDataFromGoogleSheets(
             const valData = await valRes.json();
             const rows: any[][] = valData.values || [];
             
+            // If tab has rows, ensure project exists for this tab
             const proj = getOrCreateProject(tabName, rows[0] ? rows[0][5] : undefined);
 
             for (const row of rows) {
@@ -1083,7 +1075,7 @@ export async function pullDataFromGoogleSheets(
         for (const s of sheets) {
           const tabName = s.properties?.title;
           if (!tabName) continue;
-          if (isWorkerOrMetaName(tabName)) continue;
+          if (metaTabNames.includes(tabName)) continue;
           
           const valRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${billingSheetId}/values/'${encodeURIComponent(tabName)}'!A2:L1000`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
@@ -1148,14 +1140,12 @@ export async function pullDataFromGoogleSheets(
       }
     }
 
-    const finalProjects = updatedProjects.filter(p => !isWorkerOrMetaName(p.name));
-
     return {
       success: true,
       transactions: newTransactions,
       billingItems: newBillingItems,
-      projects: finalProjects.length > 0 ? finalProjects : updatedProjects,
-      message: `ดึงข้อมูลสำเร็จ! พบโครงการ ${finalProjects.length || updatedProjects.length} โครงการ, รายรับรายจ่าย ${newTransactions.length} รายการ และการวางบิล ${newBillingItems.length} รายการ`
+      projects: updatedProjects,
+      message: `ดึงข้อมูลสำเร็จ! พบโครงการ ${updatedProjects.length} โครงการ, รายรับรายจ่าย ${newTransactions.length} รายการ และการวางบิล ${newBillingItems.length} รายการ`
     };
   } catch (err: any) {
     console.error('Error pulling data from Google Sheets:', err);
