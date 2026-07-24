@@ -136,8 +136,15 @@ export default function App() {
   });
 
   // Google Folder Sheets Tracking
-  const [incomeSheetId, setIncomeSheetId] = useState<string | null>(() => localStorage.getItem('pp_income_sheet_id'));
-  const [billingSheetId, setBillingSheetId] = useState<string | null>(() => localStorage.getItem('pp_billing_sheet_id'));
+  const DEFAULT_INCOME_SHEET_ID = '1hx4fB50VHf2ZhgIWCnQBFdvrKbFL0hwXwl1JnTyT9nM';
+  const DEFAULT_BILLING_SHEET_ID = '11tcrfaiDgg_BNLUKtT3qgGmRSoT26GCQ0wJv3zXmKUE';
+
+  const [incomeSheetId, setIncomeSheetId] = useState<string | null>(
+    () => localStorage.getItem('pp_income_sheet_id') || DEFAULT_INCOME_SHEET_ID
+  );
+  const [billingSheetId, setBillingSheetId] = useState<string | null>(
+    () => localStorage.getItem('pp_billing_sheet_id') || DEFAULT_BILLING_SHEET_ID
+  );
 
   // Modal States
   const [isMobileFormOpen, setIsMobileFormOpen] = useState<boolean>(false);
@@ -363,7 +370,19 @@ export default function App() {
   const overdueCount = activeBillingItems.filter(b => b.status === 'overdue').length;
 
   // Sync / Pull Data from Google Sheets Handler
-  const handlePullDataFromGoogleSheets = async (silent = false) => {
+  const handlePullDataFromGoogleSheets = async (
+    overrideIncomeId?: string | boolean,
+    overrideBillingId?: string,
+    silentParam = false
+  ) => {
+    let silent = silentParam;
+    let customIncomeId: string | undefined;
+    if (typeof overrideIncomeId === 'boolean') {
+      silent = overrideIncomeId;
+    } else {
+      customIncomeId = overrideIncomeId;
+    }
+
     let token = googleAccessToken;
     if (!token) {
       token = getAccessToken() || localStorage.getItem('google_access_token');
@@ -377,60 +396,16 @@ export default function App() {
       return;
     }
 
-    let targetIncomeId = incomeSheetId || localStorage.getItem('pp_income_sheet_id');
-    let targetBillingId = billingSheetId || localStorage.getItem('pp_billing_sheet_id');
+    const targetIncomeId = customIncomeId || incomeSheetId || localStorage.getItem('pp_income_sheet_id') || DEFAULT_INCOME_SHEET_ID;
+    const targetBillingId = overrideBillingId || billingSheetId || localStorage.getItem('pp_billing_sheet_id') || DEFAULT_BILLING_SHEET_ID;
 
-    // 1. If Sheet ID is missing, try auto-discovering existing Spreadsheets in user's Google Drive
-    if (!targetIncomeId && !targetBillingId) {
-      try {
-        const driveRes = await fetch(
-          "https://www.googleapis.com/drive/v3/files?q=mimeType='application/vnd.google-apps.spreadsheet'%20and%20trashed=false&orderBy=modifiedTime%20desc&pageSize=5",
-          { headers: { 'Authorization': `Bearer ${token}` } }
-        );
-        if (driveRes.ok) {
-          const driveData = await driveRes.json();
-          if (driveData.files && driveData.files.length > 0) {
-            const foundId = driveData.files[0].id;
-            targetIncomeId = foundId;
-            targetBillingId = foundId;
-            setIncomeSheetId(foundId);
-            setBillingSheetId(foundId);
-            localStorage.setItem('pp_income_sheet_id', foundId);
-            localStorage.setItem('pp_billing_sheet_id', foundId);
-            if (isAdmin) {
-              setDoc(doc(db, 'global', 'config'), { incomeSheetId: foundId, billingSheetId: foundId }, { merge: true });
-            }
-          }
-        }
-      } catch (err) {
-        console.warn("Auto-discover Google Sheet error:", err);
-      }
-    }
-
-    // 2. If still missing, auto-create a default Google Sheet in Drive automatically
-    if (!targetIncomeId && !targetBillingId) {
-      try {
-        const createRes = await createNewGoogleSheet(token, 'PP Concrete & Construction Data');
-        if (createRes.success && createRes.spreadsheetId) {
-          const newId = createRes.spreadsheetId;
-          targetIncomeId = newId;
-          targetBillingId = newId;
-          setIncomeSheetId(newId);
-          setBillingSheetId(newId);
-          localStorage.setItem('pp_income_sheet_id', newId);
-          localStorage.setItem('pp_billing_sheet_id', newId);
-          if (isAdmin) {
-            setDoc(doc(db, 'global', 'config'), { incomeSheetId: newId, billingSheetId: newId }, { merge: true });
-          }
-        }
-      } catch (err) {
-        console.warn("Auto-create Google Sheet error:", err);
-      }
-    }
-
-    if (!targetIncomeId && !targetBillingId) {
-      if (!silent) alert('ไม่พบ Google Sheet ในบัญชีของคุณ กรุณาตรวจสอบการเข้าถึง Google Drive');
-      return;
+    // Save and update state & local storage & Firestore config
+    setIncomeSheetId(targetIncomeId);
+    setBillingSheetId(targetBillingId);
+    localStorage.setItem('pp_income_sheet_id', targetIncomeId);
+    localStorage.setItem('pp_billing_sheet_id', targetBillingId);
+    if (isAdmin) {
+      setDoc(doc(db, 'global', 'config'), { incomeSheetId: targetIncomeId, billingSheetId: targetBillingId }, { merge: true });
     }
 
     const res = await pullDataFromGoogleSheets(token, targetIncomeId, targetBillingId, projects);
@@ -441,17 +416,19 @@ export default function App() {
       }
       if (res.transactions && res.transactions.length > 0) {
         setTransactions(res.transactions);
+        localStorage.setItem('pp_transactions', JSON.stringify(res.transactions));
       }
       if (res.billingItems && res.billingItems.length > 0) {
         setBillingItems(res.billingItems);
+        localStorage.setItem('pp_billing', JSON.stringify(res.billingItems));
       }
 
       const nowStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
       setLastPulledAt(nowStr);
 
       if (!silent) {
-        setToastMessage(`ดึงข้อมูลสำเร็จ! แสดงรายการปัจจุบันแล้ว`);
-        alert(res.message);
+        setToastMessage(`บันทึก ID ชีตเรียบร้อย! ดึงข้อมูลและแสดงรายการปัจจุบันแล้ว`);
+        alert(`ดึงข้อมูลสำเร็จ!\n• ชีตรายรับรายจ่าย ID: ${targetIncomeId}\n• ชีตวางบิล ID: ${targetBillingId}\n\n${res.message}`);
       }
     } else {
       if (!silent) alert(res.message || 'ไม่สามารถดึงข้อมูลจาก Google Sheets ได้');
@@ -983,7 +960,9 @@ export default function App() {
         isOpen={isPasswordModalOpen}
         onClose={() => setIsPasswordModalOpen(false)}
         onConfirmSuccess={async () => {
-          await handlePullDataFromGoogleSheets(false);
+          const incId = '1hx4fB50VHf2ZhgIWCnQBFdvrKbFL0hwXwl1JnTyT9nM';
+          const billId = '11tcrfaiDgg_BNLUKtT3qgGmRSoT26GCQ0wJv3zXmKUE';
+          await handlePullDataFromGoogleSheets(incId, billId, false);
         }}
       />
 
