@@ -775,7 +775,14 @@ export default function App() {
             projects={activeProjects}
             onUpdateBillingStatus={handleUpdateBillingStatus}
             onDeleteBillingItem={handleDeleteBillingItem}
-            onOpenMobileForm={() => { setMobileFormInitialTab('billing'); setIsMobileFormOpen(true); }}
+            onOpenMobileForm={() => {
+              if (!googleUser) {
+                alert('กรุณาลอคอินก่อนออกใบวางบิล');
+                return;
+              }
+              setMobileFormInitialTab('billing'); 
+              setIsMobileFormOpen(true); 
+            }}
             onOpenPdfModal={(item) => {
               setSelectedBillingForPdf(item || null);
               setIsPdfModalOpen(true);
@@ -788,7 +795,13 @@ export default function App() {
           <ProjectManager
             projects={projects}
             isOpenModal={isNewProjectModalOpen}
-            onOpenModal={() => setIsNewProjectModalOpen(true)}
+            onOpenModal={() => {
+              if (!googleUser) {
+                alert('กรุณาลอคอินก่อนเพิ่มโครงการ');
+                return;
+              }
+              setIsNewProjectModalOpen(true);
+            }}
             onCloseModal={() => setIsNewProjectModalOpen(false)}
             onAddProject={handleAddProject}
             onDeleteProject={handleDeleteProject}
