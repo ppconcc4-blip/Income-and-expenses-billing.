@@ -1203,3 +1203,212 @@ export async function updateProjectDetailsSheet(
   }
 }
 
+/**
+ * Save labor wages data into a Google Sheet tab named after period + month + year
+ */
+export async function saveLaborWagesToSheet(
+  accessToken: string,
+  spreadsheetUrlOrId: string,
+  selectedPeriod: string,
+  selectedMonth: string,
+  selectedYear: string,
+  workers: any[]
+): Promise<{ success: boolean; isAuthError?: boolean; message?: string; sheetTitle?: string }> {
+  const spreadsheetId = extractSpreadsheetId(spreadsheetUrlOrId);
+  if (!spreadsheetId) {
+    return { success: false, message: 'URL หรือ ID ของ Google Sheet ไม่ถูกต้อง' };
+  }
+
+  // Generate sheet title based on งวด+เดือน+ปี
+  const periodLabel = selectedPeriod === '1-15' ? 'งวด 1-15' : 'งวด 16-สิ้นเดือน';
+  const sheetTitle = `${periodLabel}_${selectedMonth}_${selectedYear}`;
+
+  try {
+    // 1. Get spreadsheet metadata to check if tab already exists
+    const metaRes = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }
+    );
+
+    if (!metaRes.ok) {
+      const errData = await metaRes.json().catch(() => ({}));
+      const isAuthError = metaRes.status === 401 || errData.error?.status === 'UNAUTHENTICATED' || errData.error?.code === 401;
+      return { 
+        success: false, 
+        isAuthError, 
+        message: errData.error?.message || (isAuthError ? 'สิทธิ์การใช้งาน Google Sheets หมดอายุ (401)' : 'ไม่สามารถดึงข้อมูล Google Sheet ได้') 
+      };
+    }
+
+    const metaData = await metaRes.json();
+    const existingSheets = metaData.sheets || [];
+    const sheetExists = existingSheets.some(
+      (s: any) => s.properties?.title === sheetTitle
+    );
+
+    // 2. If sheet does not exist, create a new sheet tab
+    if (!sheetExists) {
+      const addSheetRes = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            requests: [
+              {
+                addSheet: {
+                  properties: {
+                    title: sheetTitle
+                  }
+                }
+              }
+            ]
+          })
+        }
+      );
+
+      if (!addSheetRes.ok) {
+        const errData = await addSheetRes.json();
+        throw new Error(errData.error?.message || `ไม่สามารถสร้างชีต ${sheetTitle} ใหม่ได้`);
+      }
+    } else {
+      // Clear existing values in this sheet tab
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(sheetTitle)}':clear`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }
+
+    // 3. Prepare row data
+    const headerRow1 = [
+      `บัญชีคำนวณค่าจ้าง ค่าล่วงเวลา ประจำเดือน ${selectedMonth}/${selectedYear} งวดวันที่ ${selectedPeriod === '1-15' ? '1 - 15' : '16 - สิ้นเดือน'}`
+    ];
+    const headerRow2 = [
+      'ลำดับ', 'ชื่อ-สกุล', 'เซ็นชื่อ', 'ค่าจ้างวันละ', 'จำนวนวัน', 'รวมเงินค่าจ้าง',
+      'OT ชม.ละ', 'จำนวนชม. OT', 'รวมเงิน OT', 'เบิกล่วงหน้า/พิเศษ', 'ค่าโบนัส',
+      'รวมเงินได้', 'ประกันสังคม', 'หักค่าแรง', 'ค่าน้ำ/ค่าไฟ', 'หนี้',
+      'รวมรายการหัก', 'รับสุทธิ', 'งวดที่ 1', 'หนี้สินคงเหลือ', 'หนี้สินทั้งหมด'
+    ];
+
+    let sumWagePerDay = 0;
+    let sumWorkDays = 0;
+    let sumWageTotal = 0;
+    let sumOtHours = 0;
+    let sumOtTotal = 0;
+    let sumAdvance = 0;
+    let sumBonus = 0;
+    let sumTotalIncome = 0;
+    let sumSocial = 0;
+    let sumWageDeduct = 0;
+    let sumUtil = 0;
+    let sumDebt = 0;
+    let sumTotalDeduction = 0;
+    let sumNetIncome = 0;
+    let sumPeriod1Pay = 0;
+    let sumRemainingDebt = 0;
+    let sumTotalDebt = 0;
+
+    const workerRows = workers.map((w, index) => {
+      const wageTotal = (w.wagePerDay || 0) * (w.workDays || 0);
+      const overtimeTotal = (w.overtimeRate || 0) * (w.overtimeHours || 0);
+      const totalIncome = wageTotal + overtimeTotal + (w.advanceIncome || 0) + (w.bonus || 0);
+      const totalDeductions = (w.socialSecurity || 0) + (w.wageDeduction || 0) + (w.utilities || 0) + (w.debt || 0);
+      const netIncome = totalIncome - totalDeductions;
+
+      sumWagePerDay += (w.wagePerDay || 0);
+      sumWorkDays += (w.workDays || 0);
+      sumWageTotal += wageTotal;
+      sumOtHours += (w.overtimeHours || 0);
+      sumOtTotal += overtimeTotal;
+      sumAdvance += (w.advanceIncome || 0);
+      sumBonus += (w.bonus || 0);
+      sumTotalIncome += totalIncome;
+      sumSocial += (w.socialSecurity || 0);
+      sumWageDeduct += (w.wageDeduction || 0);
+      sumUtil += (w.utilities || 0);
+      sumDebt += (w.debt || 0);
+      sumTotalDeduction += totalDeductions;
+      sumNetIncome += netIncome;
+      sumPeriod1Pay += (w.period1Pay || 0);
+      sumRemainingDebt += (w.remainingDebt || 0);
+      sumTotalDebt += (w.totalDebt || 0);
+
+      return [
+        index + 1,
+        w.fullName || '',
+        '',
+        w.wagePerDay || 0,
+        w.workDays || 0,
+        wageTotal,
+        w.overtimeRate || 0,
+        w.overtimeHours || 0,
+        overtimeTotal,
+        w.advanceIncome || 0,
+        w.bonus || 0,
+        totalIncome,
+        w.socialSecurity || 0,
+        w.wageDeduction || 0,
+        w.utilities || 0,
+        w.debt || 0,
+        totalDeductions,
+        netIncome,
+        w.period1Pay || 0,
+        w.remainingDebt || 0,
+        w.totalDebt || 0
+      ];
+    });
+
+    const summaryRow = [
+      'รวมทั้งหมด', '', '', sumWagePerDay, sumWorkDays, sumWageTotal,
+      '', sumOtHours, sumOtTotal, sumAdvance, sumBonus,
+      sumTotalIncome, sumSocial, sumWageDeduct, sumUtil, sumDebt,
+      sumTotalDeduction, sumNetIncome, sumPeriod1Pay, sumRemainingDebt, sumTotalDebt
+    ];
+
+    const values = [
+      headerRow1,
+      [],
+      headerRow2,
+      ...workerRows,
+      summaryRow
+    ];
+
+    // 4. Update values in Google Sheets
+    const updateRes = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(sheetTitle)}'!A1?valueInputOption=USER_ENTERED`,
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ values })
+      }
+    );
+
+    if (!updateRes.ok) {
+      const errData = await updateRes.json();
+      throw new Error(errData.error?.message || 'ไม่สามารถเขียนข้อมูลลง Google Sheets ได้');
+    }
+
+    return { success: true, sheetTitle };
+  } catch (err: any) {
+    console.error('Error saving labor wages to sheet:', err);
+    return { success: false, message: err.message };
+  }
+}
+
+

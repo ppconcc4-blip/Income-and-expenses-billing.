@@ -7,7 +7,8 @@ import {
   Smartphone, 
   Bell, 
   ExternalLink,
-  Plus
+  Plus,
+  Users
 } from 'lucide-react';
 import { 
   doc, 
@@ -33,6 +34,7 @@ import { MonthlyDashboard } from './components/MonthlyDashboard';
 import { TransactionList } from './components/TransactionList';
 import { BillingManager } from './components/BillingManager';
 import { ProjectManager } from './components/ProjectManager';
+import { LaborWagesManager } from './components/LaborWagesManager';
 import { GoogleSheetModal } from './components/GoogleSheetModal';
 import { CategoryManagerModal } from './components/CategoryManagerModal';
 import { BillingPdfModal } from './components/BillingPdfModal';
@@ -72,7 +74,7 @@ import { User } from 'firebase/auth';
 
 export default function App() {
   // Navigation tab state
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'transactions' | 'billing' | 'projects'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'transactions' | 'billing' | 'projects' | 'labor-wages'>('dashboard');
 
   // Firebase Auth State
   const [googleUser, setGoogleUser] = useState<User | null>(null);
@@ -88,9 +90,11 @@ export default function App() {
 
   const handleGoogleSignIn = async () => {
     try {
-      const { user, accessToken } = await googleSignIn();
-      setGoogleUser(user);
-      setGoogleAccessToken(accessToken);
+      const result = await googleSignIn();
+      if (result) {
+        setGoogleUser(result.user);
+        setGoogleAccessToken(result.accessToken);
+      }
     } catch (err) {
       console.error('Google Sign-In failed:', err);
     }
@@ -250,8 +254,22 @@ export default function App() {
           setIncomeCategories(configData.incomeCategories);
           localStorage.setItem('pp_income_categories', JSON.stringify(configData.incomeCategories));
         }
-      } catch (e) {
-        console.error("Error loading config from Firestore", e);
+      } catch (e: any) {
+        console.warn("Firestore offline or unavailable, falling back to local storage:", e.message || e);
+        // Fallback to local storage if offline
+        const localIncomeSheetId = localStorage.getItem('pp_income_sheet_id');
+        const localBillingSheetId = localStorage.getItem('pp_billing_sheet_id');
+        const localExpenseCategories = localStorage.getItem('pp_expense_categories');
+        const localIncomeCategories = localStorage.getItem('pp_income_categories');
+
+        if (localIncomeSheetId) setIncomeSheetId(localIncomeSheetId);
+        if (localBillingSheetId) setBillingSheetId(localBillingSheetId);
+        if (localExpenseCategories) {
+          try { setExpenseCategories(JSON.parse(localExpenseCategories)); } catch {}
+        }
+        if (localIncomeCategories) {
+          try { setIncomeCategories(JSON.parse(localIncomeCategories)); } catch {}
+        }
       } finally {
         setIsLoadingConfig(false);
       }
@@ -706,6 +724,18 @@ export default function App() {
                 </span>
               </button>
 
+              <button
+                onClick={() => setActiveTab('labor-wages')}
+                className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
+                  activeTab === 'labor-wages'
+                    ? 'bg-emerald-500 text-slate-950 shadow-md'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                <span>ค่าแรงคนงาน</span>
+              </button>
+
             </div>
 
             {/* Viewer Launcher Button */}
@@ -789,6 +819,10 @@ export default function App() {
             }}
             isAdmin={isAdmin}
           />
+        )}
+
+        {activeTab === 'labor-wages' && (
+          <LaborWagesManager googleUser={googleUser} />
         )}
 
         {activeTab === 'projects' && (

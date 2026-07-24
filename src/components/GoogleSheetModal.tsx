@@ -70,32 +70,28 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
   React.useEffect(() => {
     const fetchRecentSheets = async () => {
       if (googleUser) {
-        const configDoc = doc(db, 'users', googleUser.uid, 'config', 'recentSheets');
-        const docSnap = await getDoc(configDoc);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setRecentSheets({
-            income: data.income || (incomeSheetId ? [incomeSheetId] : []),
-            billing: data.billing || (billingSheetId ? [billingSheetId] : [])
-          });
-        } else {
-          // Fallback to local
-          const savedIncome = localStorage.getItem('pp_recent_income_sheets');
-          const savedBilling = localStorage.getItem('pp_recent_billing_sheets');
-          setRecentSheets({
-            income: savedIncome ? JSON.parse(savedIncome) : (incomeSheetId ? [incomeSheetId] : []),
-            billing: savedBilling ? JSON.parse(savedBilling) : (billingSheetId ? [billingSheetId] : [])
-          });
+        try {
+          const configDoc = doc(db, 'users', googleUser.uid, 'config', 'recentSheets');
+          const docSnap = await getDoc(configDoc);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setRecentSheets({
+              income: data.income || (incomeSheetId ? [incomeSheetId] : []),
+              billing: data.billing || (billingSheetId ? [billingSheetId] : [])
+            });
+            return;
+          }
+        } catch (err: any) {
+          console.warn("Firestore offline or unavailable when fetching recent sheets:", err.message || err);
         }
-      } else {
-        // Not logged in, use local
-        const savedIncome = localStorage.getItem('pp_recent_income_sheets');
-        const savedBilling = localStorage.getItem('pp_recent_billing_sheets');
-        setRecentSheets({
-          income: savedIncome ? JSON.parse(savedIncome) : (incomeSheetId ? [incomeSheetId] : []),
-          billing: savedBilling ? JSON.parse(savedBilling) : (billingSheetId ? [billingSheetId] : [])
-        });
       }
+      // Fallback to local
+      const savedIncome = localStorage.getItem('pp_recent_income_sheets');
+      const savedBilling = localStorage.getItem('pp_recent_billing_sheets');
+      setRecentSheets({
+        income: savedIncome ? JSON.parse(savedIncome) : (incomeSheetId ? [incomeSheetId] : []),
+        billing: savedBilling ? JSON.parse(savedBilling) : (billingSheetId ? [billingSheetId] : [])
+      });
     };
     fetchRecentSheets();
     setManualIncomeUrl(incomeSheetId || '');

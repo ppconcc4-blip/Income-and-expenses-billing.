@@ -115,7 +115,8 @@ body.printing-mode .bg-slate-700 {
 
   /* Make printable document clean white page */
   #transaction-printable-area,
-  #billing-printable-area {
+  #billing-printable-area,
+  #wages-printable-area {
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
@@ -134,7 +135,8 @@ body.printing-mode .bg-slate-700 {
   }
 
   #transaction-printable-area *,
-  #billing-printable-area * {
+  #billing-printable-area *,
+  #wages-printable-area * {
     visibility: visible !important;
   }
 
