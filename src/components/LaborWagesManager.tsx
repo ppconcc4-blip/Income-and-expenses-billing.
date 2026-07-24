@@ -86,27 +86,65 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
 
   const handleFetchData = async (silent = false) => {
     if (!googleUser) {
-      alert("กรุณาลอคอินก่อนดึงข้อมูล");
+      if (!silent) alert("กรุณาเข้าสู่ระบบด้วย Google ก่อนดึงข้อมูล");
       return;
     }
     setIsFetching(true);
     try {
-      const token = await getAccessToken();
-      const spreadsheetId = extractSpreadsheetId(sheetUrl);
-      if (!spreadsheetId) {
-        alert("URL ไม่ถูกต้อง");
+      let token = await getAccessToken();
+
+      if (!token) {
+        try {
+          const authRes = await googleSignIn();
+          token = authRes?.accessToken || null;
+        } catch (authErr) {
+          console.error("Auto sign-in error:", authErr);
+        }
+      }
+
+      if (!token) {
+        if (!silent) alert("ไม่พบสิทธิ์ Google Access Token กรุณากดเข้าสู่ระบบด้วย Google อีกครั้งเพื่อยืนยันสิทธิ์");
         return;
       }
 
-      const empRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Employees!A:H`, {
+      const spreadsheetId = extractSpreadsheetId(sheetUrl);
+      if (!spreadsheetId) {
+        if (!silent) alert("URL ของ Google Sheet ไม่ถูกต้อง");
+        return;
+      }
+
+      let empRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Employees!A:H`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const attRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A:H`, {
+      let attRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A:H`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
+      if (empRes.status === 401 || attRes.status === 401) {
+        try {
+          if (!silent) {
+            alert("สิทธิ์ Google Token หมดอายุ ระบบกำลังขอสิทธิ์การเข้าถึงใหม่...");
+          }
+          const authRes = await googleSignIn();
+          if (authRes?.accessToken) {
+            token = authRes.accessToken;
+            empRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Employees!A:H`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            attRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A:H`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+          }
+        } catch (reauthErr) {
+          console.error("Reauth error:", reauthErr);
+        }
+      }
+
       if (!empRes.ok || !attRes.ok) {
-        throw new Error('ไม่สามารถดึงข้อมูลได้ กรุณาตรวจสอบสิทธิ์การเข้าถึงหรือชื่อชีต (Employees และ Sheet1)');
+        const empErr = !empRes.ok ? await empRes.json().catch(() => ({})) : {};
+        const attErr = !attRes.ok ? await attRes.json().catch(() => ({})) : {};
+        const msg = empErr.error?.message || attErr.error?.message || 'ไม่สามารถดึงข้อมูลได้ กรุณาตรวจสอบสิทธิ์การเข้าถึง Google Sheet หรือชื่อชีต (Employees และ Sheet1)';
+        throw new Error(msg);
       }
 
       const empData = await empRes.json();
@@ -116,31 +154,31 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
       const attRows = attData.values || [];
 
       if (empRows.length < 2) {
-        alert("ไม่พบข้อมูลพนักงานในชีต Employees");
+        if (!silent) alert("ไม่พบข้อมูลพนักงานในชีต Employees");
         return;
       }
       if (attRows.length < 2) {
-        alert("ไม่พบข้อมูลเวลาเข้างานในชีต Sheet1");
+        if (!silent) alert("ไม่พบข้อมูลเวลาเข้างานในชีต Sheet1");
         return;
       }
 
-      const empHeaders = empRows[0].map((h) => h.toLowerCase().trim());
-      const attHeaders = attRows[0].map((h) => h.toLowerCase().trim());
+      const empHeaders = empRows[0].map((h: string) => h.toLowerCase().trim());
+      const attHeaders = attRows[0].map((h: string) => h.toLowerCase().trim());
 
-      const nameIdx = empHeaders.findIndex((h) => h.includes('ชื่อ') && !h.includes('เล่น'));
-      const wageIdx = empHeaders.findIndex((h) => h.includes('ค่าแรง') || h.includes('ค่าจ้าง'));
-      const otRateIdx = empHeaders.findIndex((h) => h.includes('โอที') || h.includes('ล่วงเวลา') || h.includes('ot'));
-      const empIdIdx = empHeaders.findIndex((h) => h.includes('รหัส'));
+      const nameIdx = empHeaders.findIndex((h: string) => h.includes('ชื่อ') && !h.includes('เล่น'));
+      const wageIdx = empHeaders.findIndex((h: string) => h.includes('ค่าแรง') || h.includes('ค่าจ้าง'));
+      const otRateIdx = empHeaders.findIndex((h: string) => h.includes('โอที') || h.includes('ล่วงเวลา') || h.includes('ot'));
+      const empIdIdx = empHeaders.findIndex((h: string) => h.includes('รหัส'));
 
-      const attDateIdx = attHeaders.findIndex((h) => h.includes('วัน'));
-      const attNameIdx = attHeaders.findIndex((h) => h.includes('ชื่อ') && !h.includes('เล่น'));
-      const attEmpIdIdx = attHeaders.findIndex((h) => h.includes('รหัส'));
-      const attMornIdx = attHeaders.findIndex((h) => h.includes('เช้า'));
-      const attAftIdx = attHeaders.findIndex((h) => h.includes('บ่าย'));
-      const attOtIdx = attHeaders.findIndex((h) => h.includes('ot') || h.includes('ล่วงเวลา') || h.includes('โอที'));
+      const attDateIdx = attHeaders.findIndex((h: string) => h.includes('วัน'));
+      const attNameIdx = attHeaders.findIndex((h: string) => h.includes('ชื่อ') && !h.includes('เล่น'));
+      const attEmpIdIdx = attHeaders.findIndex((h: string) => h.includes('รหัส'));
+      const attMornIdx = attHeaders.findIndex((h: string) => h.includes('เช้า'));
+      const attAftIdx = attHeaders.findIndex((h: string) => h.includes('บ่าย'));
+      const attOtIdx = attHeaders.findIndex((h: string) => h.includes('ot') || h.includes('ล่วงเวลา') || h.includes('โอที'));
 
       if (attDateIdx === -1 || attMornIdx === -1 || attAftIdx === -1) {
-        alert("ไม่พบคอลัมน์ วันที่, ช่วงเช้า หรือ ช่วงบ่าย ใน Sheet1");
+        if (!silent) alert("ไม่พบคอลัมน์ วันที่, ช่วงเช้า หรือ ช่วงบ่าย ใน Sheet1");
         return;
       }
 
@@ -154,7 +192,7 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
         const wage = wageIdx !== -1 ? Number((row[wageIdx] || '').replace(/[^0-9.]/g, '')) : Number((row[3] || '').replace(/[^0-9.]/g, ''));
         const otRate = Math.round((wage / 8) * 1.5);
         
-                const empId = empIdIdx !== -1 ? (row[empIdIdx] || '') : (row[0] || '');
+        const empId = empIdIdx !== -1 ? (row[empIdIdx] || '') : (row[0] || '');
 
         if (!name) continue;
 
@@ -216,7 +254,7 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
           }
         }
 
-                const nameForMatch = nameIdx !== -1 ? (row[nameIdx] || '') : (row[1] || '');
+        const nameForMatch = nameIdx !== -1 ? (row[nameIdx] || '') : (row[1] || '');
         const existingWorker = workers.find(w => w.fullName === nameForMatch);
         const prevRemainingDebt = existingWorker ? Math.max(0, (existingWorker.totalDebt || 0) - (existingWorker.debt || 0)) : 0;
         
@@ -245,8 +283,11 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
 
       setWorkers(newWorkers);
       if (!silent) alert('ดึงข้อมูลและคำนวณสำเร็จ!');
-    } catch (err) {
-      alert(err.message);
+    } catch (err: any) {
+      console.error("Error fetching attendance data:", err);
+      if (!silent) {
+        alert(err.message || 'เกิดข้อผิดพลาดในการดึงข้อมูล');
+      }
     } finally {
       setIsFetching(false);
     }
