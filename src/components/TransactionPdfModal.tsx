@@ -403,25 +403,6 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
               </tfoot>
             </table>
 
-            {/* SIGNATURE SECTION */}
-            <div className="grid grid-cols-2 gap-8 mt-10 pt-4 border-t border-slate-300 text-[10px] text-center">
-              <div className="space-y-12">
-                <p className="font-bold text-slate-900">ผู้จัดทำรายงาน / Prepared By</p>
-                <div>
-                  <p className="text-slate-800 font-medium">(____________________________________)</p>
-                  <p className="text-slate-600 mt-1">วันที่ / DATE : ____ / _____ / ________</p>
-                </div>
-              </div>
-
-              <div className="space-y-12">
-                <p className="font-bold text-slate-900">ผู้ตรวจสอบและอนุมัติ / Approved By</p>
-                <div>
-                  <p className="text-slate-800 font-medium">(____________________________________)</p>
-                  <p className="text-slate-600 mt-1">วันที่ / DATE : ____ / _____ / ________</p>
-                </div>
-              </div>
-            </div>
-
           </div>
         </div>
 

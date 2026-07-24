@@ -153,7 +153,7 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-2 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-800 text-white w-full max-w-5xl max-h-[95vh] rounded-2xl shadow-2xl flex flex-col overflow-y-auto">
+      <div className="bg-slate-900 border border-slate-800 text-white w-[95vw] max-w-[1600px] h-[95vh] rounded-2xl shadow-2xl flex flex-col overflow-y-auto">
         
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-800/90 border-b border-slate-700 gap-3">
