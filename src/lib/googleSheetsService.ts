@@ -1226,7 +1226,7 @@ export async function saveLaborWagesToSheet(
   try {
     // 1. Get spreadsheet metadata to check if tab already exists
     const metaRes = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`
@@ -1246,12 +1246,18 @@ export async function saveLaborWagesToSheet(
 
     const metaData = await metaRes.json();
     const existingSheets = metaData.sheets || [];
-    const sheetExists = existingSheets.some(
+    let sheetId: number | null = null;
+    const foundSheet = existingSheets.find(
       (s: any) => s.properties?.title === sheetTitle
     );
+    const sheetExists = !!foundSheet;
+
+    if (foundSheet) {
+      sheetId = foundSheet.properties.sheetId;
+    }
 
     // 2. If sheet does not exist, create a new sheet tab
-    if (!sheetExists) {
+    if (!sheetExists || sheetId === null) {
       const addSheetRes = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
         {
@@ -1278,6 +1284,9 @@ export async function saveLaborWagesToSheet(
         const errData = await addSheetRes.json();
         throw new Error(errData.error?.message || `ไม่สามารถสร้างชีต ${sheetTitle} ใหม่ได้`);
       }
+
+      const addSheetData = await addSheetRes.json();
+      sheetId = addSheetData.replies?.[0]?.addSheet?.properties?.sheetId ?? null;
     } else {
       // Clear existing values in this sheet tab
       await fetch(
@@ -1402,6 +1411,412 @@ export async function saveLaborWagesToSheet(
     if (!updateRes.ok) {
       const errData = await updateRes.json();
       throw new Error(errData.error?.message || 'ไม่สามารถเขียนข้อมูลลง Google Sheets ได้');
+    }
+
+    // 5. Apply rich styling via batchUpdate if sheetId is known
+    if (sheetId !== null) {
+      const numRows = workerRows.length;
+      const totalColumns = 21;
+      const summaryRowIdx = 3 + numRows;
+
+      const formatRequests: any[] = [
+        // Unmerge Title first to prevent merge collision
+        {
+          unmergeCells: {
+            range: {
+              sheetId,
+              startRowIndex: 0,
+              endRowIndex: 1,
+              startColumnIndex: 0,
+              endColumnIndex: totalColumns
+            }
+          }
+        },
+        // Unmerge Summary A:C
+        {
+          unmergeCells: {
+            range: {
+              sheetId,
+              startRowIndex: summaryRowIdx,
+              endRowIndex: summaryRowIdx + 1,
+              startColumnIndex: 0,
+              endColumnIndex: 3
+            }
+          }
+        },
+        // 1) Merge Title Row (A1:U1) and center it
+        {
+          mergeCells: {
+            range: {
+              sheetId,
+              startRowIndex: 0,
+              endRowIndex: 1,
+              startColumnIndex: 0,
+              endColumnIndex: totalColumns
+            },
+            mergeType: 'MERGE_ALL'
+          }
+        },
+        // Format Title Row
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 0,
+              endRowIndex: 1,
+              startColumnIndex: 0,
+              endColumnIndex: totalColumns
+            },
+            cell: {
+              userEnteredFormat: {
+                horizontalAlignment: 'CENTER',
+                verticalAlignment: 'MIDDLE',
+                textFormat: {
+                  fontSize: 14,
+                  bold: true,
+                  foregroundColor: { red: 0.1, green: 0.18, blue: 0.3 }
+                },
+                backgroundColor: { red: 0.93, green: 0.95, blue: 0.98 }
+              }
+            },
+            fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,textFormat,backgroundColor)'
+          }
+        },
+        // Set Title Row height
+        {
+          updateDimensionProperties: {
+            range: {
+              sheetId,
+              dimension: 'ROWS',
+              startIndex: 0,
+              endIndex: 1
+            },
+            properties: {
+              pixelSize: 42
+            },
+            fields: 'pixelSize'
+          }
+        },
+        // 2) Format Column Headers (Row 2, index 2) - Navy background, white bold text, centered
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 2,
+              endRowIndex: 3,
+              startColumnIndex: 0,
+              endColumnIndex: totalColumns
+            },
+            cell: {
+              userEnteredFormat: {
+                horizontalAlignment: 'CENTER',
+                verticalAlignment: 'MIDDLE',
+                wrapStrategy: 'WRAP',
+                textFormat: {
+                  fontSize: 10,
+                  bold: true,
+                  foregroundColor: { red: 1, green: 1, blue: 1 }
+                },
+                backgroundColor: { red: 0.12, green: 0.23, blue: 0.38 }
+              }
+            },
+            fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,wrapStrategy,textFormat,backgroundColor)'
+          }
+        },
+        {
+          updateDimensionProperties: {
+            range: {
+              sheetId,
+              dimension: 'ROWS',
+              startIndex: 2,
+              endIndex: 3
+            },
+            properties: {
+              pixelSize: 38
+            },
+            fields: 'pixelSize'
+          }
+        },
+        // 3) Format Data Rows (Row 3 to 3+numRows)
+        // General text alignment & number formatting for numeric columns
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 3,
+              endRowIndex: 3 + numRows,
+              startColumnIndex: 0,
+              endColumnIndex: totalColumns
+            },
+            cell: {
+              userEnteredFormat: {
+                verticalAlignment: 'MIDDLE',
+                textFormat: {
+                  fontSize: 10,
+                  foregroundColor: { red: 0.1, green: 0.1, blue: 0.1 }
+                }
+              }
+            },
+            fields: 'userEnteredFormat(verticalAlignment,textFormat)'
+          }
+        },
+        // Align Col 0 (Index) Center
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 3,
+              endRowIndex: 3 + numRows,
+              startColumnIndex: 0,
+              endColumnIndex: 1
+            },
+            cell: {
+              userEnteredFormat: {
+                horizontalAlignment: 'CENTER'
+              }
+            },
+            fields: 'userEnteredFormat.horizontalAlignment'
+          }
+        },
+        // Align Col 1 (Name) Left & Bold
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 3,
+              endRowIndex: 3 + numRows,
+              startColumnIndex: 1,
+              endColumnIndex: 2
+            },
+            cell: {
+              userEnteredFormat: {
+                horizontalAlignment: 'LEFT',
+                textFormat: { bold: true }
+              }
+            },
+            fields: 'userEnteredFormat(horizontalAlignment,textFormat.bold)'
+          }
+        },
+        // Align Col 2 (Signature) Center
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 3,
+              endRowIndex: 3 + numRows,
+              startColumnIndex: 2,
+              endColumnIndex: 3
+            },
+            cell: {
+              userEnteredFormat: {
+                horizontalAlignment: 'CENTER'
+              }
+            },
+            fields: 'userEnteredFormat.horizontalAlignment'
+          }
+        },
+        // Align Col 3-20 (Numbers) Right & Currency/Number Pattern
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 3,
+              endRowIndex: 3 + numRows,
+              startColumnIndex: 3,
+              endColumnIndex: totalColumns
+            },
+            cell: {
+              userEnteredFormat: {
+                horizontalAlignment: 'RIGHT',
+                numberFormat: {
+                  type: 'NUMBER',
+                  pattern: '#,##0.00'
+                }
+              }
+            },
+            fields: 'userEnteredFormat(horizontalAlignment,numberFormat)'
+          }
+        },
+        // 4) Merge summary A:C ("รวมทั้งหมด")
+        {
+          mergeCells: {
+            range: {
+              sheetId,
+              startRowIndex: summaryRowIdx,
+              endRowIndex: summaryRowIdx + 1,
+              startColumnIndex: 0,
+              endColumnIndex: 3
+            },
+            mergeType: 'MERGE_ALL'
+          }
+        },
+        // Format Summary Row
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: summaryRowIdx,
+              endRowIndex: summaryRowIdx + 1,
+              startColumnIndex: 0,
+              endColumnIndex: totalColumns
+            },
+            cell: {
+              userEnteredFormat: {
+                verticalAlignment: 'MIDDLE',
+                horizontalAlignment: 'RIGHT',
+                textFormat: {
+                  fontSize: 10,
+                  bold: true,
+                  foregroundColor: { red: 0.05, green: 0.1, blue: 0.25 }
+                },
+                backgroundColor: { red: 0.86, green: 0.9, blue: 0.96 },
+                numberFormat: {
+                  type: 'NUMBER',
+                  pattern: '#,##0.00'
+                }
+              }
+            },
+            fields: 'userEnteredFormat(verticalAlignment,horizontalAlignment,textFormat,backgroundColor,numberFormat)'
+          }
+        },
+        // Center text on summary cell A:C
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: summaryRowIdx,
+              endRowIndex: summaryRowIdx + 1,
+              startColumnIndex: 0,
+              endColumnIndex: 3
+            },
+            cell: {
+              userEnteredFormat: {
+                horizontalAlignment: 'CENTER',
+                textFormat: {
+                  fontSize: 11,
+                  bold: true,
+                  foregroundColor: { red: 0.05, green: 0.1, blue: 0.25 }
+                }
+              }
+            },
+            fields: 'userEnteredFormat(horizontalAlignment,textFormat)'
+          }
+        },
+        {
+          updateDimensionProperties: {
+            range: {
+              sheetId,
+              dimension: 'ROWS',
+              startIndex: summaryRowIdx,
+              endIndex: summaryRowIdx + 1
+            },
+            properties: {
+              pixelSize: 32
+            },
+            fields: 'pixelSize'
+          }
+        },
+        // 5) Borders for table (Headers + Data + Summary)
+        {
+          updateBorders: {
+            range: {
+              sheetId,
+              startRowIndex: 2,
+              endRowIndex: summaryRowIdx + 1,
+              startColumnIndex: 0,
+              endColumnIndex: totalColumns
+            },
+            top: { style: 'SOLID', width: 1, color: { red: 0.7, green: 0.75, blue: 0.82 } },
+            bottom: { style: 'SOLID', width: 1, color: { red: 0.7, green: 0.75, blue: 0.82 } },
+            left: { style: 'SOLID', width: 1, color: { red: 0.7, green: 0.75, blue: 0.82 } },
+            right: { style: 'SOLID', width: 1, color: { red: 0.7, green: 0.75, blue: 0.82 } },
+            innerHorizontal: { style: 'SOLID', width: 1, color: { red: 0.8, green: 0.85, blue: 0.9 } },
+            innerVertical: { style: 'SOLID', width: 1, color: { red: 0.8, green: 0.85, blue: 0.9 } }
+          }
+        },
+        // Heavy border for header bottom & double border for summary top
+        {
+          updateBorders: {
+            range: {
+              sheetId,
+              startRowIndex: 2,
+              endRowIndex: 3,
+              startColumnIndex: 0,
+              endColumnIndex: totalColumns
+            },
+            bottom: { style: 'SOLID_MEDIUM', color: { red: 0.12, green: 0.23, blue: 0.38 } }
+          }
+        },
+        {
+          updateBorders: {
+            range: {
+              sheetId,
+              startRowIndex: summaryRowIdx,
+              endRowIndex: summaryRowIdx + 1,
+              startColumnIndex: 0,
+              endColumnIndex: totalColumns
+            },
+            top: { style: 'DOUBLE', color: { red: 0.12, green: 0.23, blue: 0.38 } }
+          }
+        }
+      ];
+
+      // Set individual column widths
+      const colWidths = [
+        45,  // 0: ลำดับ
+        170, // 1: ชื่อ-สกุล
+        85,  // 2: เซ็นชื่อ
+        95,  // 3: ค่าจ้างวันละ
+        80,  // 4: จำนวนวัน
+        105, // 5: รวมเงินค่าจ้าง
+        85,  // 6: OT ชม.ละ
+        95,  // 7: จำนวนชม. OT
+        100, // 8: รวมเงิน OT
+        110, // 9: เบิกล่วงหน้า/พิเศษ
+        90,  // 10: ค่าโบนัส
+        110, // 11: รวมเงินได้
+        95,  // 12: ประกันสังคม
+        90,  // 13: หักค่าแรง
+        90,  // 14: ค่าน้ำ/ค่าไฟ
+        90,  // 15: หนี้
+        110, // 16: รวมรายการหัก
+        115, // 17: รับสุทธิ
+        95,  // 18: งวดที่ 1
+        110, // 19: หนี้สินคงเหลือ
+        110  // 20: หนี้สินทั้งหมด
+      ];
+
+      colWidths.forEach((width, colIdx) => {
+        formatRequests.push({
+          updateDimensionProperties: {
+            range: {
+              sheetId,
+              dimension: 'COLUMNS',
+              startIndex: colIdx,
+              endIndex: colIdx + 1
+            },
+            properties: {
+              pixelSize: width
+            },
+            fields: 'pixelSize'
+          }
+        });
+      });
+
+      // Execute formatting batchUpdate
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ requests: formatRequests })
+        }
+      ).catch(err => {
+        console.warn('Formatting batchUpdate warning:', err);
+      });
     }
 
     return { success: true, sheetTitle };
