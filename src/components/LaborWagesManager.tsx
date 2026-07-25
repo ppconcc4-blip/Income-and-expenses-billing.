@@ -153,6 +153,59 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
       const empRows = empData.values || [];
       const attRows = attData.values || [];
 
+      let periodRows: any[][] = [];
+      let prevPeriodRows: any[][] = [];
+      const wageSpreadsheetId = extractSpreadsheetId(WAGE_SAVE_SPREADSHEET_URL) || spreadsheetId;
+
+      try {
+        const periodLabel = selectedPeriod === '1-15' ? 'งวด 1-15' : 'งวด 16-สิ้นเดือน';
+        const sheetTitle = `${periodLabel}_${selectedMonth}_${selectedYear}`;
+        const periodRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${wageSpreadsheetId}/values/'${encodeURIComponent(sheetTitle)}'!A:T`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (periodRes.ok) {
+          const periodData = await periodRes.json();
+          periodRows = periodData.values || [];
+        }
+      } catch (pErr) {
+        console.warn("Could not load period sheet (might not exist yet):", pErr);
+      }
+
+      try {
+        let prevPeriod = '';
+        let prevMonthStr = '';
+        let prevYearStr = '';
+
+        if (selectedPeriod === '16-end') {
+          prevPeriod = '1-15';
+          prevMonthStr = selectedMonth;
+          prevYearStr = selectedYear;
+        } else {
+          prevPeriod = '16-end';
+          let mNum = parseInt(selectedMonth, 10);
+          let yNum = parseInt(selectedYear, 10);
+          mNum -= 1;
+          if (mNum === 0) {
+            mNum = 12;
+            yNum -= 1;
+          }
+          prevMonthStr = mNum.toString().padStart(2, '0');
+          prevYearStr = yNum.toString();
+        }
+
+        const prevPeriodLabel = prevPeriod === '1-15' ? 'งวด 1-15' : 'งวด 16-สิ้นเดือน';
+        const prevSheetTitle = `${prevPeriodLabel}_${prevMonthStr}_${prevYearStr}`;
+        const prevPeriodRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${wageSpreadsheetId}/values/'${encodeURIComponent(prevSheetTitle)}'!A:T`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (prevPeriodRes.ok) {
+          const prevPeriodData = await prevPeriodRes.json();
+          prevPeriodRows = prevPeriodData.values || [];
+        }
+      } catch (prevErr) {
+        console.warn("Could not load previous period sheet:", prevErr);
+      }
+
       if (empRows.length < 2) {
         if (!silent) alert("ไม่พบข้อมูลพนักงานในชีต Employees");
         return;
@@ -256,7 +309,85 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
 
         const nameForMatch = nameIdx !== -1 ? (row[nameIdx] || '') : (row[1] || '');
         const existingWorker = workers.find(w => w.fullName === nameForMatch);
-        const prevRemainingDebt = existingWorker ? Math.max(0, (existingWorker.totalDebt || 0) - (existingWorker.debt || 0)) : 0;
+        const prevPeriod1Pay = existingWorker ? (existingWorker.period1Pay || 0) : 0;
+        const prevTotalDebt = existingWorker ? (existingWorker.totalDebt || prevPeriod1Pay) : prevPeriod1Pay;
+        const prevRemainingDebt = Math.max(0, prevTotalDebt - (existingWorker?.debt || 0));
+
+        let prevRemainingDebtFromSheet = 0;
+        let prevPeriod1PayFromSheet = 0;
+        let foundPrevInSheet = false;
+        if (prevPeriodRows && prevPeriodRows.length > 3) {
+          const matchedPrevRow = prevPeriodRows.find(pRow => {
+            if (!pRow || pRow.length < 2) return false;
+            const pName = String(pRow[1] || '').trim();
+            return pName && pName.toLowerCase() === name.trim().toLowerCase();
+          });
+          if (matchedPrevRow) {
+            foundPrevInSheet = true;
+            if (matchedPrevRow.length > 17) {
+              prevPeriod1PayFromSheet = Number(String(matchedPrevRow[17] || '0').replace(/[^0-9.-]/g, '')) || 0;
+            }
+            if (matchedPrevRow.length > 18) {
+              prevRemainingDebtFromSheet = Number(String(matchedPrevRow[18] || '0').replace(/[^0-9.-]/g, '')) || 0;
+            }
+          }
+        }
+
+        const finalPrevRemainingDebt = foundPrevInSheet ? prevRemainingDebtFromSheet : prevRemainingDebt;
+        const finalPrevPeriod1Pay = foundPrevInSheet ? prevPeriod1PayFromSheet : prevPeriod1Pay;
+
+        let savedAdvanceIncome = 0;
+        let savedBonus = 0;
+        let savedSocialSecurity = 0;
+        let savedWageDeduction = 0;
+        let savedUtilities = 0;
+        let savedDebt = 0;
+        let savedPeriod1Pay = 0;
+        let savedTotalDebt = 0;
+        let savedWagePerDay = wage;
+        let savedOvertimeRate = otRate;
+        let savedWorkDays = workDays;
+        let savedOvertimeHours = overtimeHours;
+        let hasSavedData = false;
+        let matchedRow: any[] | undefined;
+
+        if (periodRows && periodRows.length > 3) {
+          matchedRow = periodRows.find(pRow => {
+            if (!pRow || pRow.length < 2) return false;
+            const pName = String(pRow[1] || '').trim();
+            return pName && pName.toLowerCase() === name.trim().toLowerCase();
+          });
+
+          if (matchedRow) {
+            hasSavedData = true;
+            savedWagePerDay = Number(String(matchedRow[2] || '0').replace(/[^0-9.-]/g, '')) || wage;
+            savedWorkDays = Number(String(matchedRow[3] || '0').replace(/[^0-9.-]/g, '')) || 0;
+            savedOvertimeRate = Number(String(matchedRow[5] || '0').replace(/[^0-9.-]/g, '')) || otRate;
+            savedOvertimeHours = Number(String(matchedRow[6] || '0').replace(/[^0-9.-]/g, '')) || 0;
+            savedAdvanceIncome = Number(String(matchedRow[8] || '0').replace(/[^0-9.-]/g, '')) || 0;
+            savedBonus = Number(String(matchedRow[9] || '0').replace(/[^0-9.-]/g, '')) || 0;
+            savedSocialSecurity = Number(String(matchedRow[11] || '0').replace(/[^0-9.-]/g, '')) || 0;
+            savedWageDeduction = Number(String(matchedRow[12] || '0').replace(/[^0-9.-]/g, '')) || 0;
+            savedUtilities = Number(String(matchedRow[13] || '0').replace(/[^0-9.-]/g, '')) || 0;
+            savedDebt = Number(String(matchedRow[14] || '0').replace(/[^0-9.-]/g, '')) || 0;
+            savedPeriod1Pay = Number(String(matchedRow[17] || '0').replace(/[^0-9.-]/g, '')) || 0;
+            savedTotalDebt = Number(String(matchedRow[19] || '0').replace(/[^0-9.-]/g, '')) || 0;
+          }
+        }
+
+        const finalWagePerDay = hasSavedData ? savedWagePerDay : (wage || 0);
+        const finalWorkDays = hasSavedData ? savedWorkDays : workDays;
+        const finalOvertimeRate = hasSavedData ? savedOvertimeRate : (otRate || 0);
+        const finalOvertimeHours = hasSavedData ? savedOvertimeHours : overtimeHours;
+        const advanceIncome = hasSavedData ? savedAdvanceIncome : 0;
+        const bonus = hasSavedData ? savedBonus : 0;
+        const socialSecurity = hasSavedData ? savedSocialSecurity : 0;
+        const wageDeduction = hasSavedData ? savedWageDeduction : 0;
+        const utilities = hasSavedData ? savedUtilities : 0;
+        const debt = hasSavedData ? savedDebt : 0;
+        const period1Pay = hasSavedData ? savedPeriod1Pay : finalPrevPeriod1Pay;
+        const totalDebt = hasSavedData ? savedTotalDebt : finalPrevRemainingDebt;
+        const remainingDebt = hasSavedData ? Math.max(0, totalDebt - debt) : Math.max(0, totalDebt - debt);
         
         newWorkers.push({
           id: crypto.randomUUID(),
@@ -265,19 +396,19 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
           attendanceRecords: attendanceRecords,
           no: newWorkers.length + 1,
           fullName: name,
-          wagePerDay: wage || 0,
-          workDays: workDays,
-          overtimeRate: otRate || 0,
-          overtimeHours: overtimeHours,
-          advanceIncome: 0,
-          bonus: 0,
-          socialSecurity: 0,
-          wageDeduction: 0,
-          utilities: 0,
-          debt: 0,
-          period1Pay: 0,
-          totalDebt: prevRemainingDebt,
-          remainingDebt: prevRemainingDebt
+          wagePerDay: finalWagePerDay,
+          workDays: finalWorkDays,
+          overtimeRate: finalOvertimeRate,
+          overtimeHours: finalOvertimeHours,
+          advanceIncome: advanceIncome,
+          bonus: bonus,
+          socialSecurity: socialSecurity,
+          wageDeduction: wageDeduction,
+          utilities: utilities,
+          debt: debt,
+          period1Pay: period1Pay,
+          totalDebt: totalDebt,
+          remainingDebt: remainingDebt
         });
       }
 
@@ -329,8 +460,17 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
         if (field === 'wagePerDay') {
            updated.overtimeRate = Math.round((Number(value) || 0) / 8 * 1.5);
         }
+        if (field === 'period1Pay') {
+           const numVal = Number(value) || 0;
+           // If user sets initial debt, default totalDebt to initialDebt if totalDebt was empty/0 or equal to previous initial debt
+           if (!w.totalDebt || w.totalDebt === w.period1Pay) {
+             updated.totalDebt = numVal;
+           }
+           updated.remainingDebt = (updated.totalDebt || numVal) - (updated.debt || 0);
+        }
         if (field === 'totalDebt' || field === 'debt') {
-           updated.remainingDebt = (Number(updated.totalDebt) || 0) - (Number(updated.debt) || 0);
+           const baseTotal = Number(updated.totalDebt) || Number(updated.period1Pay) || 0;
+           updated.remainingDebt = baseTotal - (Number(updated.debt) || 0);
         }
         return updated;
       }
@@ -413,17 +553,18 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
       alert("ไม่มีข้อมูลคนงานในตาราง");
       return;
     }
-    if (window.confirm("ต้องการนำ 'หนี้สินคงเหลือ' ของคนงานทุกคน ไปตั้งเป็น 'หนี้สินทั้งหมด' (สำหรับงวดถัดไป) และรีเซ็ตยอด 'หนี้' งวดนี้เป็น 0 หรือไม่?")) {
+    if (window.confirm("ต้องการนำ 'หนี้สินคงเหลือ' ของคนงานทุกคน ไปตั้งเป็น 'หนี้สินตั้งต้น' (สำหรับงวดถัดไป) และรีเซ็ตยอด 'หนี้' งวดนี้เป็น 0 หรือไม่?")) {
       setWorkers(prev => prev.map(w => {
-        const remaining = Math.max(0, (w.totalDebt || 0) - (w.debt || 0));
+        const remaining = Math.max(0, (w.totalDebt || w.period1Pay || 0) - (w.debt || 0));
         return {
           ...w,
+          period1Pay: remaining,
           totalDebt: remaining,
           debt: 0,
           remainingDebt: remaining
         };
       }));
-      alert("อัปเดตหนี้สินทั้งหมดเรียบร้อยแล้ว!");
+      alert("อัปเดตหนี้สินตั้งต้นสำหรับงวดถัดไปเรียบร้อยแล้ว!");
     }
   };
 
@@ -600,7 +741,16 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
           </select>
         </div>
         <button 
-          onClick={handleFetchData}
+          onClick={() => handleFetchData(false)}
+          disabled={isFetching}
+          className="w-full sm:w-auto flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white print:text-black px-4 py-2 rounded-lg text-sm font-bold shadow-md transition-all h-[38px]"
+          title="ดึงข้อมูลงวดที่เลือกที่บันทึกไว้ในชีต"
+        >
+          {isFetching ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ClipboardCheck className="w-4 h-4" />}
+          <span>ดึงข้อมูลจากชีตตามงวด</span>
+        </button>
+        <button 
+          onClick={() => handleFetchData(false)}
           disabled={isFetching}
           className="w-full sm:w-auto flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white print:text-black px-4 py-2 rounded-lg text-sm font-bold shadow-md transition-all h-[38px]"
         >
@@ -658,16 +808,15 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
               <tr>
                 <th rowSpan={2} className="sticky left-0 z-20 bg-slate-800 print:bg-gray-100 border border-slate-700 print:border-gray-400 p-2 w-10 min-w-[40px]">ลำดับ</th>
                 <th rowSpan={2} className="sticky left-[40px] z-20 bg-slate-800 print:bg-gray-100 border border-slate-700 print:border-gray-400 p-2 w-48 min-w-[192px]">ชื่อ-สกุล</th>
-                <th rowSpan={2} className="border border-slate-700 print:border-gray-400 p-2 w-24">เซ็นชื่อ</th>
                 <th colSpan={3} className="border border-slate-700 print:border-gray-400 p-2 bg-slate-700/50 print:bg-gray-200">ค่าจ้าง</th>
                 <th colSpan={3} className="border border-slate-700 print:border-gray-400 p-2 bg-slate-700/50 print:bg-gray-200">ค่าล่วงเวลา</th>
                 <th colSpan={2} className="border border-slate-700 print:border-gray-400 p-2 bg-slate-700/50 print:bg-gray-200">รายรับอื่นๆ</th>
                 <th rowSpan={2} className="border border-slate-700 print:border-gray-400 p-2 bg-emerald-900/30 print:bg-green-100">รวมเงินได้</th>
                 <th colSpan={4} className="border border-slate-700 print:border-gray-400 p-2 bg-rose-900/30 print:bg-red-100">รายการหัก</th>
                 <th rowSpan={2} className="border border-slate-700 print:border-gray-400 p-2 bg-emerald-700/40 print:bg-green-200 text-emerald-100 print:text-black font-bold">รับสุทธิ</th>
-                <th rowSpan={2} className="border border-slate-700 print:border-gray-400 p-2">งวดที่ 1</th>
+                <th rowSpan={2} className="border border-slate-700 print:border-gray-400 p-2 bg-amber-900/30 print:bg-amber-100 text-amber-200 print:text-black">หนี้สินตั้งต้น</th>
                 <th rowSpan={2} className="border border-slate-700 print:border-gray-400 p-2">หนี้สินคงเหลือ</th>
-                <th rowSpan={2} className="border border-slate-700 print:border-gray-400 p-2 w-24">หนี้สินทั้งหมด</th>
+                <th rowSpan={2} className="border border-slate-700 print:border-gray-400 p-2 w-28 bg-amber-900/40 print:bg-amber-200 text-amber-200 print:text-black font-bold">ยอดหนี้รวม</th>
                 <th rowSpan={2} className="border border-slate-700 print:border-gray-400 p-2 no-print w-12">บันทึกทำงาน</th>
               </tr>
               <tr>
@@ -693,6 +842,8 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
                 const totalIncome = wageTotal + overtimeTotal + (w.advanceIncome || 0) + (w.bonus || 0);
                 const totalDeductions = (w.socialSecurity || 0) + (w.wageDeduction || 0) + (w.utilities || 0) + (w.debt || 0);
                 const netIncome = totalIncome - totalDeductions;
+                const calcTotalDebt = w.totalDebt || w.period1Pay || 0;
+                const calcRemainingDebt = calcTotalDebt - (w.debt || 0);
 
                 return (
                   <tr key={w.id} className="bg-slate-900 print:bg-white border-b border-slate-800 print:border-gray-300 hover:bg-slate-800 print:bg-gray-100/50">
@@ -700,7 +851,6 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
                     <td className="sticky left-[40px] z-10 bg-slate-900 print:bg-white border border-slate-700 print:border-gray-400 p-1">
                       <input type="text" value={w.fullName} onChange={(e) => handleChange(w.id, 'fullName', e.target.value)} className="w-full bg-transparent border-none text-white print:text-black px-1 text-sm focus:ring-1 focus:ring-blue-500 rounded" />
                     </td>
-                    <td className="border border-slate-700 print:border-gray-400 p-1"></td>
                     <td className="border border-slate-700 print:border-gray-400 p-1">
                       <input type="number" value={w.wagePerDay || ''} onChange={(e) => handleChange(w.id, 'wagePerDay', Number(e.target.value))} onBlur={() => { if (w.sheetRowIndex) { updateWageInSheet(w.sheetRowIndex, w.wagePerDay || 0); } }} className="w-full bg-transparent border-none text-white print:text-black px-1 text-sm text-right focus:ring-1 focus:ring-blue-500 rounded" />
                     </td>
@@ -739,14 +889,14 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
                     <td className="border border-slate-700 print:border-gray-400 p-1 text-right font-bold text-emerald-300 bg-emerald-700/20">
                       {netIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
-                    <td className="border border-slate-700 print:border-gray-400 p-1">
-                      <input type="number" value={w.period1Pay || ''} onChange={(e) => handleChange(w.id, 'period1Pay', Number(e.target.value))} className="w-full bg-transparent border-none text-white print:text-black px-1 text-sm text-right focus:ring-1 focus:ring-blue-500 rounded" />
+                    <td className="border border-slate-700 print:border-gray-400 p-1 bg-amber-900/10">
+                      <input type="number" value={w.period1Pay || ''} onChange={(e) => handleChange(w.id, 'period1Pay', Number(e.target.value))} placeholder="0" className="w-full bg-transparent border-none text-amber-200 print:text-black px-1 text-sm text-right focus:ring-1 focus:ring-amber-500 rounded font-medium" />
                     </td>
                     <td className="border border-slate-700 print:border-gray-400 p-1">
-                      <div className="w-full px-1 text-sm text-right text-slate-300 print:text-gray-700">{(w.totalDebt || 0) - (w.debt || 0)}</div>
+                      <div className="w-full px-1 text-sm text-right text-slate-300 print:text-gray-700 font-medium">{calcRemainingDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                     </td>
-                    <td className="border border-slate-700 print:border-gray-400 p-1">
-                      <input type="number" value={w.totalDebt || ''} onChange={(e) => handleChange(w.id, 'totalDebt', Number(e.target.value))} className="w-full bg-transparent border-none text-white print:text-black px-1 text-sm text-right focus:ring-1 focus:ring-blue-500 rounded" />
+                    <td className="border border-slate-700 print:border-gray-400 p-1 bg-amber-900/20">
+                      <input type="number" value={calcTotalDebt || ''} onChange={(e) => handleChange(w.id, 'totalDebt', Number(e.target.value))} placeholder="0" className="w-full bg-transparent border-none text-amber-300 print:text-black px-1 text-sm text-right focus:ring-1 focus:ring-amber-500 rounded font-bold" />
                     </td>
                     <td className="border border-slate-700 print:border-gray-400 p-1 text-center no-print">
                       <button onClick={() => setAttendanceModalWorker(w)} className="bg-emerald-600 hover:bg-emerald-500 text-white print:text-black p-1.5 rounded" title="บันทึกการทำงาน">
@@ -758,7 +908,7 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
               })}
               {workers.length === 0 && (
                 <tr>
-                  <td colSpan={22} className="border border-slate-700 print:border-gray-400 p-8 text-center text-slate-500">
+                  <td colSpan={21} className="border border-slate-700 print:border-gray-400 p-8 text-center text-slate-500">
                     ยังไม่มีข้อมูลคนงาน คลิก "เพิ่มคนงาน" เพื่อเริ่มต้น
                   </td>
                 </tr>
@@ -767,7 +917,7 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
             {workers.length > 0 && (
               <tfoot className="bg-slate-800 print:bg-gray-100 text-slate-300 print:text-gray-700 font-bold">
                 <tr>
-                  <td colSpan={4} className="sticky left-0 z-10 bg-slate-800 print:bg-gray-100 border border-slate-700 print:border-gray-400 p-2 text-right">รวมทั้งหมด</td>
+                  <td colSpan={2} className="sticky left-0 z-10 bg-slate-800 print:bg-gray-100 border border-slate-700 print:border-gray-400 p-2 text-right">รวมทั้งหมด</td>
                   <td className="border border-slate-700 print:border-gray-400 p-2 text-right">
                     {workers.reduce((acc, w) => acc + (w.wagePerDay || 0), 0).toLocaleString()}
                   </td>
@@ -810,13 +960,15 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
                   <td className="border border-slate-700 print:border-gray-400 p-2 text-right text-emerald-300">
                     {workers.reduce((acc, w) => acc + (w.wagePerDay || 0) * (w.workDays || 0) + (w.overtimeRate || 0) * (w.overtimeHours || 0) + (w.advanceIncome || 0) + (w.bonus || 0) - ((w.socialSecurity || 0) + (w.wageDeduction || 0) + (w.utilities || 0) + (w.debt || 0)), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td className="border border-slate-700 print:border-gray-400 p-2 text-right">
+                  <td className="border border-slate-700 print:border-gray-400 p-2 text-right text-amber-200">
                     {workers.reduce((acc, w) => acc + (w.period1Pay || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="border border-slate-700 print:border-gray-400 p-2 text-right">
-                    {workers.reduce((acc, w) => acc + ((w.totalDebt || 0) - (w.debt || 0)), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {workers.reduce((acc, w) => acc + ((w.totalDebt || w.period1Pay || 0) - (w.debt || 0)), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td className="border border-slate-700 print:border-gray-400 p-2"></td>
+                  <td className="border border-slate-700 print:border-gray-400 p-2 text-right text-amber-300">
+                    {workers.reduce((acc, w) => acc + (w.totalDebt || w.period1Pay || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
                   <td className="border border-slate-700 print:border-gray-400 p-2 no-print"></td>
                 </tr>
               </tfoot>

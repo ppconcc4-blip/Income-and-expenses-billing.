@@ -1309,10 +1309,10 @@ export async function saveLaborWagesToSheet(
       `บัญชีคำนวณค่าจ้าง ค่าล่วงเวลา ประจำเดือน ${selectedMonth}/${selectedYear} งวดวันที่ ${selectedPeriod === '1-15' ? '1 - 15' : '16 - สิ้นเดือน'}`
     ];
     const headerRow2 = [
-      'ลำดับ', 'ชื่อ-สกุล', 'เซ็นชื่อ', 'ค่าจ้างวันละ', 'จำนวนวัน', 'รวมเงินค่าจ้าง',
+      'ลำดับ', 'ชื่อ-สกุล', 'ค่าจ้างวันละ', 'จำนวนวัน', 'รวมเงินค่าจ้าง',
       'OT ชม.ละ', 'จำนวนชม. OT', 'รวมเงิน OT', 'เบิกล่วงหน้า/พิเศษ', 'ค่าโบนัส',
       'รวมเงินได้', 'ประกันสังคม', 'หักค่าแรง', 'ค่าน้ำ/ค่าไฟ', 'หนี้',
-      'รวมรายการหัก', 'รับสุทธิ', 'งวดที่ 1', 'หนี้สินคงเหลือ', 'หนี้สินทั้งหมด'
+      'รวมรายการหัก', 'รับสุทธิ', 'หนี้สินตั้งต้น', 'หนี้สินคงเหลือ', 'หนี้สินทั้งหมด'
     ];
 
     let sumWagePerDay = 0;
@@ -1361,7 +1361,6 @@ export async function saveLaborWagesToSheet(
       return [
         index + 1,
         w.fullName || '',
-        '',
         w.wagePerDay || 0,
         w.workDays || 0,
         wageTotal,
@@ -1384,7 +1383,7 @@ export async function saveLaborWagesToSheet(
     });
 
     const summaryRow = [
-      'รวมทั้งหมด', '', '', sumWagePerDay, sumWorkDays, sumWageTotal,
+      'รวมทั้งหมด', '', sumWagePerDay, sumWorkDays, sumWageTotal,
       '', sumOtHours, sumOtTotal, sumAdvance, sumBonus,
       sumTotalIncome, sumSocial, sumWageDeduct, sumUtil, sumDebt,
       sumTotalDeduction, sumNetIncome, sumPeriod1Pay, sumRemainingDebt, sumTotalDebt
