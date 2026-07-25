@@ -575,6 +575,13 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
       return;
     }
 
+    const originalTitle = document.title;
+    const periodLabel = selectedPeriod === '1-15' ? 'งวด 1-15' : 'งวด 16-สิ้นเดือน';
+    const filename = `${periodLabel}_${selectedMonth}_${selectedYear}`;
+    
+    // Set parent title so file save default name is correct
+    document.title = filename;
+
     const clone = printElement.cloneNode(true) as HTMLElement;
 
     const origInputs = printElement.querySelectorAll('input, select');
@@ -603,11 +610,14 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
     // Remove no-print elements AFTER inputs are replaced
     clone.querySelectorAll('.no-print').forEach(el => el.remove());
 
+    // CRITICAL: Remove inner style tag to prevent "body * { visibility: hidden; }" from hiding the print header
+    clone.querySelectorAll('style').forEach(el => el.remove());
+
     const htmlContent = `<!DOCTYPE html>
 <html lang="th">
   <head>
     <meta charset="utf-8" />
-    <title>บัญชีคำนวณค่าจ้าง ค่าล่วงเวลา - ${selectedMonth}/${selectedYear} (${selectedPeriod === '1-15' ? '1-15' : '16-สิ้นเดือน'})</title>
+    <title>${filename}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -615,7 +625,7 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
       * { box-sizing: border-box !important; }
       body { 
         font-family: 'Sarabun', sans-serif; 
-        background: #f1f5f9 !important; 
+        background: #ffffff !important; 
         color: #0f172a !important; 
         padding: 6px; 
         margin: 0; 
@@ -624,6 +634,10 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
         print-color-adjust: exact !important;
       }
       .no-print { display: none !important; }
+      .min-w-\\[1600px\\] {
+        min-width: unset !important;
+        width: 100% !important;
+      }
       table { 
         border-collapse: collapse !important; 
         width: 100% !important; 
@@ -633,7 +647,7 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
       }
       th, td { 
         border: 1px solid #94a3b8 !important; 
-        padding: 1.5px 2px !important; 
+        padding: 2px 2px !important; 
         color: #0f172a !important; 
         position: static !important; 
         min-width: 0 !important;
@@ -641,13 +655,37 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
         word-break: break-all !important;
         overflow: hidden !important;
       }
-      th { background-color: #e2e8f0 !important; font-weight: bold !important; text-align: center !important; }
+      td {
+        background-color: #ffffff !important;
+      }
+      thead {
+        background-color: #f1f5f9 !important;
+      }
+      th { 
+        background-color: #f1f5f9 !important; 
+        color: #0f172a !important; 
+        font-weight: bold !important; 
+        text-align: center !important; 
+      }
+      td:nth-child(2), th:nth-child(2) {
+        white-space: nowrap !important;
+        text-align: left !important;
+        padding-left: 4px !important;
+      }
+      /* Specific column group background colors for accurate PDF visualization */
+      .bg-slate-700\\/50, .print\\:bg-gray-200 { background-color: #f1f5f9 !important; color: #0f172a !important; }
+      .bg-emerald-900\\/30, .print\\:bg-green-100 { background-color: #d1fae5 !important; color: #065f46 !important; }
+      .bg-rose-900\\/30, .print\\:bg-red-100 { background-color: #fee2e2 !important; color: #991b1b !important; }
+      .bg-emerald-700\\/40, .print\\:bg-green-200 { background-color: #a7f3d0 !important; color: #047857 !important; }
+      .bg-amber-900\\/30, .print\\:bg-amber-100 { background-color: #fef3c7 !important; color: #92400e !important; }
+      .bg-amber-900\\/40, .print\\:bg-amber-200 { background-color: #fde68a !important; color: #78350f !important; }
+
       .text-right { text-align: right !important; }
       .text-center { text-align: center !important; }
       .text-left { text-align: left !important; }
       .font-bold { font-weight: bold !important; }
       @media print {
-        body { background: #f1f5f9 !important; }
+        body { background: #ffffff !important; }
         .printable-container { width: 100% !important; }
       }
     </style>
@@ -661,24 +699,42 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
       ${clone.innerHTML}
     </div>
     <script>
+      document.title = "${filename}";
       window.onload = function() {
-        setTimeout(function() { window.focus(); window.print(); }, 400);
+        setTimeout(function() { 
+          document.title = "${filename}";
+          window.focus(); 
+          window.print(); 
+        }, 600);
       };
     </script>
   </body>
 </html>`;
 
-    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const printWin = window.open(url, '_blank');
-    if (!printWin) {
-      window.print();
+    const printWin = window.open('', '_blank');
+    if (printWin) {
+      printWin.document.write(htmlContent);
+      printWin.document.title = filename;
+      printWin.document.close();
+    } else {
+      // Fallback if popup blocked
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const fbWin = window.open(url, '_blank');
+      if (fbWin) {
+        fbWin.document.title = filename;
+      }
     }
+
+    // Restore parent window title after dialog has launched
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 2000);
   };
 
   return (
     <div id="wages-printable-area" className="bg-slate-900 border border-slate-700 rounded-2xl shadow-xl overflow-hidden flex flex-col h-full animate-in fade-in">
-      <div className="p-4 sm:p-6 border-b border-slate-800 print:border-gray-300 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="p-4 sm:p-6 border-b border-slate-800 print:border-gray-300 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 no-print">
         <div>
           <h2 className="text-xl font-bold text-white print:text-black">บัญชีคำนวณค่าจ้าง ค่าล่วงเวลา</h2>
           <p className="text-sm text-slate-400 print:text-gray-700">ค่าทำงานในวันหยุด และค่าล่วงเวลาในวันหยุด</p>
@@ -691,6 +747,14 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
           >
             {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             <span>{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</span>
+          </button>
+          <button
+            onClick={handlePrint}
+            className="flex items-center space-x-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-md"
+            title="พิมพ์ หรือ ส่งออกเป็น PDF ขนาด A4 แนวนอน"
+          >
+            <Printer className="w-4 h-4" />
+            <span>พิมพ์ PDF (A4 แนวนอน)</span>
           </button>
           <button
             onClick={() => window.open(WAGE_SAVE_SPREADSHEET_URL, '_blank')}
