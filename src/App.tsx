@@ -8,7 +8,8 @@ import {
   Bell, 
   ExternalLink,
   Plus,
-  Users
+  Users,
+  Sliders
 } from 'lucide-react';
 import { 
   doc, 
@@ -40,6 +41,7 @@ import { CategoryManagerModal } from './components/CategoryManagerModal';
 import { BillingPdfModal } from './components/BillingPdfModal';
 import { TransactionPdfModal } from './components/TransactionPdfModal';
 import { SheetPasswordModal } from './components/SheetPasswordModal';
+import { ConstructionPlanner } from './components/ConstructionPlanner';
 import { initAuth, googleSignIn, logoutGoogle, getAccessToken, db } from './lib/firebase';
 import { 
   autoSyncTransactionToSheet, 
@@ -113,6 +115,34 @@ export default function App() {
     const saved = localStorage.getItem('pp_projects');
     return saved ? JSON.parse(saved) : INITIAL_PROJECTS;
   });
+
+  // Check if we are in the standalone Construction Planner window
+  const [isPlannerMode, setIsPlannerMode] = useState<boolean>(() => {
+    return window.location.hash === '#planner' || window.location.search.includes('view=planner');
+  });
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      setIsPlannerMode(window.location.hash === '#planner' || window.location.search.includes('view=planner'));
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  if (isPlannerMode) {
+    return (
+      <ConstructionPlanner 
+        projects={projects} 
+        onClose={() => {
+          // Try to close tab if opened in a new tab/window
+          window.close();
+          // Fallback if window.close() is blocked or didn't work (e.g. same tab)
+          window.location.hash = '';
+          setIsPlannerMode(false);
+        }} 
+      />
+    );
+  }
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('pp_transactions');
@@ -784,14 +814,16 @@ export default function App() {
 
             </div>
 
-            {/* Viewer Launcher Button */}
-            <button
-              onClick={() => setIsSheetViewerOpen(true)}
-              className="hidden md:flex items-center space-x-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 text-xs font-bold px-3 py-1.5 rounded-xl transition-all"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-              <span>เปิดดูตัวอย่างชีต</span>
-            </button>
+            {/* Desktop Action Buttons */}
+            <div className="hidden md:flex items-center space-x-2">
+              <button
+                onClick={() => setIsSheetViewerOpen(true)}
+                className="flex items-center space-x-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 text-xs font-bold px-3 py-1.5 rounded-xl transition-all"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                <span>เปิดดูตัวอย่างชีต</span>
+              </button>
+            </div>
 
           </div>
         </div>

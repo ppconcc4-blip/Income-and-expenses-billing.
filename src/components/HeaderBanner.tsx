@@ -11,7 +11,8 @@ import {
   UserCheck,
   Tag,
   RefreshCw,
-  Printer
+  Printer,
+  Sliders
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { DEFAULT_SHEET_INCOME, DEFAULT_SHEET_BILLING } from '../data/mockData';
@@ -193,6 +194,16 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
                 <span>จัดการหมวดหมู่</span>
               </button>
             )}
+
+            {/* Construction Planner Button */}
+            <button
+              onClick={() => window.open('#planner', '_blank')}
+              className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 hover:text-amber-400 text-xs font-semibold px-3 py-2 rounded-xl transition-all"
+              title="เปิดเครื่องมือแผนงานก่อสร้าง (หน้าต่างใหม่)"
+            >
+              <Sliders className="w-4 h-4 text-amber-400" />
+              <span>แผนงานก่อสร้าง ⚡</span>
+            </button>
 
             {/* Add Project Button */}
             {isAdmin && (

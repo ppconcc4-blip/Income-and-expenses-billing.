@@ -65,8 +65,8 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
   }
 };
 
-export const getAccessToken = async (): Promise<string | null> => {
-  return cachedAccessToken;
+export const getAccessToken = (): string | null => {
+  return cachedAccessToken || localStorage.getItem('google_access_token');
 };
 
 export const logoutGoogle = async () => {
