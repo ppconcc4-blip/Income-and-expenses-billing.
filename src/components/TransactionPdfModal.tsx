@@ -67,6 +67,32 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
     });
   }, [filteredAndSortedTransactions]);
 
+  // Calculate Summary grouped by Payee/Payer Name (ผู้จ่าย/ผู้รับเงิน)
+  const summaryByPayee = useMemo(() => {
+    const map = new Map<string, {
+      name: string;
+      income: number;
+      expense: number;
+      count: number;
+    }>();
+
+    filteredAndSortedTransactions.forEach(t => {
+      const rawName = (t.payerOrPayee || '').trim();
+      const name = rawName || 'ไม่ระบุผู้จ่าย/ผู้รับเงิน';
+      const existing = map.get(name) || { name, income: 0, expense: 0, count: 0 };
+
+      if (t.type === 'income') {
+        existing.income += t.amount;
+      } else {
+        existing.expense += t.amount;
+      }
+      existing.count += 1;
+      map.set(name, existing);
+    });
+
+    return Array.from(map.values()).sort((a, b) => (b.expense + b.income) - (a.expense + a.income));
+  }, [filteredAndSortedTransactions]);
+
   if (!isOpen) return null;
 
   // Calculations for summary totals
@@ -110,6 +136,7 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
       table { border-collapse: collapse !important; width: 100% !important; }
       th, td { border: 1px solid #cbd5e1 !important; }
       .no-print { display: none !important; }
+      .page-break { page-break-before: always; break-before: page; margin-top: 1rem; }
     </style>
   </head>
   <body>
@@ -402,6 +429,144 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
                 </tr>
               </tfoot>
             </table>
+
+            {/* PAGE BREAK & PAGE 2: SUMMARY BY RECIPIENT / PAYEE */}
+            <div className="page-break pt-8 mt-10 border-t-2 border-dashed border-slate-400 print:border-none">
+              
+              {/* PAGE 2 HEADER */}
+              <div className="border-b-2 border-slate-900 pb-3 mb-4 flex justify-between items-start gap-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-16 h-16 shrink-0">
+                    <PPLogo className="w-full h-full" fillColor="#1e3a8a" />
+                  </div>
+                  <div className="space-y-1">
+                    <h1 className="text-sm font-black text-blue-950 uppercase leading-tight">
+                      บริษัท พีพี. คอนสตรัคชั่น แอนด์ แมนเนจเม้นท์ จำกัด (สำนักงานใหญ่)
+                    </h1>
+                    <h2 className="text-[11px] font-bold text-blue-800 leading-tight">
+                      PP. CONSTRUCTION AND MANAGEMENT CO., LTD. ( Head Office )
+                    </h2>
+                    <p className="text-[9.5px] text-slate-600 pt-1">
+                      45 ซอยโชคชัย 4 ซอย 83 ถนนโชคชัย 4 แขวงลาดพร้าว เขตลาดพร้าว กรุงเทพมหานคร 10230 | TAX ID: 0105556120098
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-right border-l border-slate-300 pl-4 space-y-1 min-w-[220px]">
+                  <div className="bg-emerald-900 text-white text-[10px] font-black px-2 py-1 rounded uppercase tracking-wider text-center">
+                    PAYEE & PAYER SUMMARY (แผ่นที่ 2)
+                  </div>
+                  <h2 className="text-[13px] font-black text-slate-900 mt-1">
+                    สรุปยอดรวมแยกตามผู้จ่าย / ผู้รับเงิน
+                  </h2>
+                  <div className="space-y-0.5">
+                    <p className="text-[10px] text-slate-700 font-bold">
+                      โครงการ: <span className="text-blue-900">{projectTitleText}</span>
+                    </p>
+                    <p className="text-[10px] text-slate-700 font-bold">
+                      ประจำเดือน: <span className="text-blue-900">{monthTitleText}</span>
+                    </p>
+                    <p className="text-[9px] text-slate-500">
+                      วันที่พิมพ์: {new Date().toLocaleDateString('th-TH')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* SUMMARY STATS BANNER FOR PAGE 2 */}
+              <div className="grid grid-cols-4 gap-3 mb-4 text-[10.5px]">
+                <div className="p-2 bg-slate-100 border border-slate-300 rounded text-slate-900">
+                  <p className="text-[9px] font-bold text-slate-600">จำนวนผู้จ่าย/ผู้รับเงินทั้งหมด</p>
+                  <p className="text-sm font-black text-slate-900 mt-0.5">
+                    {summaryByPayee.length} ราย
+                  </p>
+                </div>
+                <div className="p-2 bg-emerald-50 border border-emerald-300 rounded text-emerald-950">
+                  <p className="text-[9px] font-bold text-emerald-800">รวมรายรับทั้งหมด</p>
+                  <p className="text-sm font-black text-emerald-700 mt-0.5">
+                    +{totalIncome.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+                  </p>
+                </div>
+                <div className="p-2 bg-red-50 border border-red-300 rounded text-red-950">
+                  <p className="text-[9px] font-bold text-red-800">รวมรายจ่ายทั้งหมด</p>
+                  <p className="text-sm font-black text-red-700 mt-0.5">
+                    -{totalExpense.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+                  </p>
+                </div>
+                <div className={`p-2 border rounded ${netBalance >= 0 ? 'bg-blue-50 border-blue-300 text-blue-950' : 'bg-amber-50 border-amber-300 text-amber-950'}`}>
+                  <p className="text-[9px] font-bold text-slate-800">ยอดคงเหลือสุทธิ</p>
+                  <p className={`text-sm font-black mt-0.5 ${netBalance >= 0 ? 'text-blue-900' : 'text-amber-700'}`}>
+                    {netBalance.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+                  </p>
+                </div>
+              </div>
+
+              {/* SUMMARY BY PAYEE TABLE */}
+              <table className="w-full text-left border-collapse border border-slate-300 text-[10px]">
+                <thead>
+                  <tr className="bg-slate-900 text-white font-bold text-[9.5px]">
+                    <th className="py-2 px-2 text-center w-[40px] border-r border-slate-700">#</th>
+                    <th className="py-2 px-3 border-r border-slate-700">ชื่อผู้จ่าย / ผู้รับเงิน (Payee / Payer Name)</th>
+                    <th className="py-2 px-2 text-center w-[110px] border-r border-slate-700">จำนวนรายการ</th>
+                    <th className="py-2 px-3 text-right w-[160px] border-r border-slate-700 text-emerald-300">รวมรายรับ (บาท)</th>
+                    <th className="py-2 px-3 text-right w-[160px] border-r border-slate-700 text-red-300">รวมรายจ่าย (บาท)</th>
+                    <th className="py-2 px-3 text-right w-[160px] text-blue-300">ยอดสุทธิ / ผลต่าง (บาท)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {summaryByPayee.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-500 font-medium italic">
+                        ไม่พบข้อมูลผู้จ่าย / ผู้รับเงิน
+                      </td>
+                    </tr>
+                  ) : (
+                    summaryByPayee.map((item, idx) => {
+                      const net = item.income - item.expense;
+                      return (
+                        <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/90'}>
+                          <td className="py-2 px-2 text-center font-bold text-slate-600 border-r border-slate-200">
+                            {idx + 1}
+                          </td>
+                          <td className="py-2 px-3 font-bold text-slate-900 border-r border-slate-200">
+                            {item.name}
+                          </td>
+                          <td className="py-2 px-2 text-center font-semibold text-slate-700 border-r border-slate-200">
+                            {item.count} รายการ
+                          </td>
+                          <td className="py-2 px-3 text-right border-r border-slate-200 font-bold text-emerald-700 whitespace-nowrap">
+                            {item.income > 0 ? item.income.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}
+                          </td>
+                          <td className="py-2 px-3 text-right border-r border-slate-200 font-bold text-red-700 whitespace-nowrap">
+                            {item.expense > 0 ? item.expense.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}
+                          </td>
+                          <td className={`py-2 px-3 text-right font-black whitespace-nowrap ${net >= 0 ? 'text-blue-900 bg-blue-50/20' : 'text-red-900 bg-red-50/20'}`}>
+                            {net.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-200 font-black text-[11px] border-t-2 border-slate-800">
+                    <td colSpan={3} className="py-2.5 px-3 text-right border-r border-slate-300 uppercase text-slate-950">
+                      ยอดรวมทั้งสิ้น ({summaryByPayee.length} รายชื่อ) :
+                    </td>
+                    <td className="py-2.5 px-3 text-right border-r border-slate-300 text-emerald-900 font-extrabold text-xs whitespace-nowrap">
+                      {totalIncome.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-2.5 px-3 text-right border-r border-slate-300 text-red-900 font-extrabold text-xs whitespace-nowrap">
+                      {totalExpense.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className={`py-2.5 px-3 text-right font-black text-xs whitespace-nowrap ${netBalance >= 0 ? 'text-blue-950' : 'text-red-950'}`}>
+                      {netBalance.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+
+            </div>
 
           </div>
         </div>
