@@ -59,7 +59,19 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     console.error('Google Sign-in Error:', error);
-    throw error;
+    let userFriendlyMessage = error.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ';
+    if (error.code === 'auth/popup-blocked') {
+      userFriendlyMessage = 'เบราว์เซอร์ของคุณบล็อกหน้าต่างป๊อปอัพ (Popup Blocked) กรุณาคลิก "อนุญาตป๊อปอัพ" ในช่องที่อยู่ของเบราว์เซอร์ (Address Bar) หรือหากใช้งานผ่านหน้าแก้ไขของ AI Studio แนะนำให้คลิกเปิดแอปพลิเคชันในแท็บใหม่ (Open in new tab) เพื่อเข้าสู่ระบบด้วย Google ได้สำเร็จ';
+    } else if (error.code === 'auth/cancelled-popup-request') {
+      userFriendlyMessage = 'การเข้าสู่ระบบถูกยกเลิก หรือมีการขอหน้าต่างเข้าสู่ระบบซ้ำซ้อน กรุณารอสักครู่แล้วลองใหม่อีกครั้ง หรือแนะนำให้เปิดแอปพลิเคชันในแท็บใหม่ (Open in new tab) เพื่อลดข้อจำกัดของเบราว์เซอร์';
+    } else if (error.code === 'auth/popup-closed-by-user') {
+      userFriendlyMessage = 'หน้าต่างเข้าสู่ระบบถูกปิดโดยผู้ใช้ กรุณากดปุ่มเข้าสู่ระบบอีกครั้งเพื่อเข้าสู่ระบบใหม่';
+    } else if (error.code === 'auth/network-request-failed') {
+      userFriendlyMessage = 'การเชื่อมต่อเครือข่ายล้มเหลว กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตของคุณ';
+    }
+    const enhancedError = new Error(userFriendlyMessage);
+    (enhancedError as any).code = error.code;
+    throw enhancedError;
   } finally {
     isSigningIn = false;
   }

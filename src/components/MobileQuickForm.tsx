@@ -92,6 +92,21 @@ export const MobileQuickForm: React.FC<MobileQuickFormProps> = ({
   const [whtDeduct, setWhtDeduct] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [successMsg, setSuccessMsg] = useState<string>('');
+  const [recentPayees, setRecentPayees] = useState<string[]>([]);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setFormType(initialTab);
+      try {
+        const saved = localStorage.getItem('recent_payees');
+        if (saved) {
+          setRecentPayees(JSON.parse(saved));
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, [isOpen, initialTab]);
 
   if (!isOpen) return null;
 
@@ -115,6 +130,17 @@ export const MobileQuickForm: React.FC<MobileQuickFormProps> = ({
 
     setIsSubmitting(true);
     const numAmount = parseFloat(amount);
+    
+    // Save payer/payee to recent
+    if (payerOrPayee && formType !== 'billing') {
+      try {
+        const updatedPayees = [payerOrPayee, ...recentPayees.filter(p => p !== payerOrPayee)].slice(0, 20);
+        setRecentPayees(updatedPayees);
+        localStorage.setItem('recent_payees', JSON.stringify(updatedPayees));
+      } catch (e) {
+        console.error(e);
+      }
+    }
 
     try {
       if (formType === 'income' || formType === 'expense') {
@@ -486,11 +512,17 @@ export const MobileQuickForm: React.FC<MobileQuickFormProps> = ({
                     </label>
                     <input
                       type="text"
+                      list="recent-payees-list"
                       value={payerOrPayee}
                       onChange={(e) => setPayerOrPayee(e.target.value)}
                       placeholder="ชื่อผู้รับ/จ่ายเงิน"
                       className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-400"
                     />
+                    <datalist id="recent-payees-list">
+                      {recentPayees.map((p, idx) => (
+                        <option key={idx} value={p} />
+                      ))}
+                    </datalist>
                   </div>
                 )}
               </div>

@@ -94,6 +94,10 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
       let token = await getAccessToken();
 
       if (!token) {
+        if (silent) {
+          // If silent, do not auto-trigger popup (blocked by browser on page load)
+          return;
+        }
         try {
           const authRes = await googleSignIn();
           token = authRes?.accessToken || null;
@@ -121,10 +125,13 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
       });
 
       if (empRes.status === 401 || attRes.status === 401) {
+        localStorage.removeItem('google_access_token');
+        if (silent) {
+          // If silent, do not call googleSignIn (which opens popup and gets blocked!)
+          return;
+        }
         try {
-          if (!silent) {
-            alert("สิทธิ์ Google Token หมดอายุ ระบบกำลังขอสิทธิ์การเข้าถึงใหม่...");
-          }
+          alert("สิทธิ์ Google Token หมดอายุ ระบบกำลังขอสิทธิ์การเข้าถึงใหม่...");
           const authRes = await googleSignIn();
           if (authRes?.accessToken) {
             token = authRes.accessToken;
@@ -135,8 +142,9 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
               headers: { Authorization: `Bearer ${token}` }
             });
           }
-        } catch (reauthErr) {
+        } catch (reauthErr: any) {
           console.error("Reauth error:", reauthErr);
+          throw reauthErr;
         }
       }
 

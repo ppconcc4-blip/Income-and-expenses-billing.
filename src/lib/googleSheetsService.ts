@@ -930,34 +930,88 @@ export async function pullDataFromGoogleSheets(
 
     // 0. Pull Project Details Tab if exists in incomeSheetId or billingSheetId
     const pullProjectDetailsFromSheet = async (sheetId: string) => {
-      const candidateTabs = ['รายละเอียดโครงการ', 'ข้อมูลโครงการ', 'Projects'];
+      const candidateTabs = ['รายละเอียดโครงการ', 'ข้อมูลโครงการ', 'Projects', 'รายชื่อโครงการ'];
       for (const tabName of candidateTabs) {
         try {
           const valRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/'${encodeURIComponent(tabName)}'!A2:J1000`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
           });
+          if (valRes.status === 401) {
+            throw new Error('UNAUTHORIZED');
+          }
           if (valRes.ok) {
             const valData = await valRes.json();
             const rows: any[][] = valData.values || [];
+            const isProjListTab = tabName === 'รายชื่อโครงการ';
             for (const row of rows) {
               if (!row || row.length === 0 || (!row[0] && !row[1])) continue;
               const code = row[0] || '';
               const name = row[1] || row[0] || '';
               if (!name) continue;
-              const clientName = row[2] || 'ลูกค้าทั่วไป';
-              const contractValue = parseFloat(String(row[3] || '0').replace(/,/g, '')) || 0;
-              const budget = parseFloat(String(row[4] || '0').replace(/,/g, '')) || 0;
-              const startDate = row[5] || new Date().toISOString().split('T')[0];
-              const endDate = row[6] || new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0];
-              const statusStr = String(row[7] || '').toLowerCase();
-              const status: 'active' | 'completed' = statusStr.includes('เสร็จ') || statusStr.includes('completed') ? 'completed' : 'active';
-              const drawingDriveId = row[8] || '';
-              const boqDriveId = row[9] || '';
+
+              let clientName = 'ลูกค้าทั่วไป';
+              let contractValue = 0;
+              let budget = 0;
+              let startDate = new Date().toISOString().split('T')[0];
+              let endDate = new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0];
+              let drawingDriveId = '';
+              let boqDriveId = '';
+              let status: 'active' | 'completed' = 'active';
+
+              let location = '';
+              let contractNo = '';
+              let plannerSheetUrl = '';
+              
+              if (isProjListTab) {
+                startDate = row[2] || startDate;
+                // row[3] is duration
+                endDate = row[4] || endDate;
+                clientName = row[5] || 'ลูกค้าทั่วไป';
+                contractValue = parseFloat(String(row[6] || '0').replace(/,/g, '')) || 0;
+                budget = parseFloat(String(row[7] || '0').replace(/,/g, '')) || 0;
+                // Because we repurposed some columns before, we should just read indices as they are in the headers array
+                // 8: ลิงก์รายรับรายจ่าย (but stored as sheetUrlIncome, wait, previously we assigned to drawingDriveId. Let's fix that too)
+                const sheetUrlIncome = row[8] || ''; 
+                const sheetUrlBilling = row[9] || '';
+                location = row[10] || '';
+                contractNo = row[11] || '';
+                plannerSheetUrl = row[12] || '';
+                
+                // Let's not overwrite drawing/boq with these if they were incorrectly mapped before, but we can't change history easily.
+              } else {
+                clientName = row[2] || 'ลูกค้าทั่วไป';
+                contractValue = parseFloat(String(row[3] || '0').replace(/,/g, '')) || 0;
+                budget = parseFloat(String(row[4] || '0').replace(/,/g, '')) || 0;
+                startDate = row[5] || startDate;
+                endDate = row[6] || endDate;
+                const statusStr = String(row[7] || '').toLowerCase();
+                status = statusStr.includes('เสร็จ') || statusStr.includes('completed') ? 'completed' : 'active';
+                drawingDriveId = row[8] || '';
+                boqDriveId = row[9] || '';
+              }
 
               const existingIdx = updatedProjects.findIndex(p => p.code.toLowerCase() === code.toLowerCase() || p.name.toLowerCase() === name.toLowerCase());
+              
+              const newProjData = {
+                code: code,
+                name: name,
+                clientName: clientName,
+                contractValue: contractValue,
+                budget: budget,
+                startDate: startDate,
+                endDate: endDate,
+                status: status,
+                drawingDriveId: drawingDriveId,
+                boqDriveId: boqDriveId,
+                location: location,
+                contractNo: contractNo,
+                plannerSheetUrl: plannerSheetUrl
+              };
+
               if (existingIdx >= 0) {
                 updatedProjects[existingIdx] = {
                   ...updatedProjects[existingIdx],
+                  ...newProjData,
                   code: code || updatedProjects[existingIdx].code,
                   name: name || updatedProjects[existingIdx].name,
                   clientName: clientName || updatedProjects[existingIdx].clientName,
@@ -968,31 +1022,29 @@ export async function pullDataFromGoogleSheets(
                   status: status || updatedProjects[existingIdx].status,
                   drawingDriveId: drawingDriveId || updatedProjects[existingIdx].drawingDriveId,
                   boqDriveId: boqDriveId || updatedProjects[existingIdx].boqDriveId,
-                  sheetUrlIncome: incomeSheetId ? `https://docs.google.com/spreadsheets/d/${incomeSheetId}/edit` : updatedProjects[existingIdx].sheetUrlIncome,
-                  sheetUrlBilling: billingSheetId ? `https://docs.google.com/spreadsheets/d/${billingSheetId}/edit` : updatedProjects[existingIdx].sheetUrlBilling,
+                  location: location || updatedProjects[existingIdx].location,
+                  contractNo: contractNo || updatedProjects[existingIdx].contractNo,
+                  plannerSheetUrl: plannerSheetUrl || updatedProjects[existingIdx].plannerSheetUrl,
+                  sheetUrlIncome: (isProjListTab && row[8]) ? row[8] : (incomeSheetId ? `https://docs.google.com/spreadsheets/d/${incomeSheetId}/edit` : updatedProjects[existingIdx].sheetUrlIncome),
+                  sheetUrlBilling: (isProjListTab && row[9]) ? row[9] : (billingSheetId ? `https://docs.google.com/spreadsheets/d/${billingSheetId}/edit` : updatedProjects[existingIdx].sheetUrlBilling),
                   sheetTabName: name
                 };
               } else {
                 updatedProjects.push({
                   id: `proj-sheet-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                  ...newProjData,
                   code: code || `P-${Math.floor(100 + updatedProjects.length)}`,
-                  name: name,
-                  clientName: clientName,
-                  contractValue: contractValue,
-                  budget: budget,
-                  startDate: startDate,
-                  endDate: endDate,
-                  status: status,
-                  drawingDriveId: drawingDriveId,
-                  boqDriveId: boqDriveId,
-                  sheetUrlIncome: incomeSheetId ? `https://docs.google.com/spreadsheets/d/${incomeSheetId}/edit` : '',
-                  sheetUrlBilling: billingSheetId ? `https://docs.google.com/spreadsheets/d/${billingSheetId}/edit` : '',
+                  sheetUrlIncome: (isProjListTab && row[8]) ? row[8] : (incomeSheetId ? `https://docs.google.com/spreadsheets/d/${incomeSheetId}/edit` : ''),
+                  sheetUrlBilling: (isProjListTab && row[9]) ? row[9] : (billingSheetId ? `https://docs.google.com/spreadsheets/d/${billingSheetId}/edit` : ''),
                   sheetTabName: name
                 });
               }
             }
           }
-        } catch (e) {
+        } catch (e: any) {
+          if (e.message === 'UNAUTHORIZED') {
+            throw e;
+          }
           console.warn('Pull project details tab warning:', e);
         }
       }
@@ -1012,6 +1064,9 @@ export async function pullDataFromGoogleSheets(
       const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${incomeSheetId}`, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
       });
+      if (metaRes.status === 401) {
+        throw new Error('UNAUTHORIZED');
+      }
       if (metaRes.ok) {
         const meta = await metaRes.json();
         const sheets: any[] = meta.sheets || [];
@@ -1072,6 +1127,9 @@ export async function pullDataFromGoogleSheets(
       const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${billingSheetId}`, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
       });
+      if (metaRes.status === 401) {
+        throw new Error('UNAUTHORIZED');
+      }
       if (metaRes.ok) {
         const meta = await metaRes.json();
         const sheets: any[] = meta.sheets || [];
@@ -1154,7 +1212,7 @@ export async function pullDataFromGoogleSheets(
     console.error('Error pulling data from Google Sheets:', err);
     return {
       success: false,
-      message: err.message || 'เกิดข้อผิดพลาดในการดึงข้อมูลจาก Google Sheets'
+      message: err.message === 'UNAUTHORIZED' ? 'UNAUTHORIZED' : (err.message || 'เกิดข้อผิดพลาดในการดึงข้อมูลจาก Google Sheets')
     };
   }
 }
@@ -1824,6 +1882,412 @@ export async function saveLaborWagesToSheet(
     return { success: true, sheetTitle };
   } catch (err: any) {
     console.error('Error saving labor wages to sheet:', err);
+    return { success: false, message: err.message };
+  }
+}
+
+/**
+ * Save/update project list into Google Sheet's 'รายชื่อโครงการ' tab
+ */
+export async function saveProjectsToProjectListSheet(
+  accessToken: string,
+  projects: Project[],
+  spreadsheetId: string = '1go5YGEV455ENaxoL5oQ4b55GmCOSOKdescT4mNHyBAw'
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const tabName = 'รายชื่อโครงการ';
+    const headers = [
+      'ชื่อโครงการ',
+      'รหัสโครงการ',
+      'ชื่อผู้ว่าจ้าง',
+      'สถานที่ก่อสร้าง',
+      'สัญญาเลขที่',
+      'วันที่เริ่มต้น',
+      'จำนวนวัน',
+      'วันสิ้นสุด',
+      'มูลค่าสัญญา'
+    ];
+    
+    await ensureSheetTabExists(accessToken, spreadsheetId, tabName, headers);
+    
+    const rows = projects.map(p => {
+      let duration = 0;
+      if (p.startDate && p.endDate) {
+        const start = new Date(p.startDate);
+        const end = new Date(p.endDate);
+        const diffTime = end.getTime() - start.getTime();
+        const days = isNaN(diffTime) ? 0 : Math.round(diffTime / (24 * 60 * 60 * 1000)) + 1;
+        duration = days > 0 ? days : 1;
+      }
+      
+      return [
+        p.name || '',
+        p.code || '',
+        p.clientName || 'ลูกค้าทั่วไป',
+        p.location || '',
+        p.contractNo || '',
+        p.startDate || '',
+        duration > 0 ? duration : 1,
+        p.endDate || '',
+        p.contractValue || 0
+      ];
+    });
+    
+    // Clear existing data in range A1:I1000
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(tabName)}'!A1:I1000:clear`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      }
+    });
+    
+    // Write data (headers + rows)
+    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(tabName)}'!A1?valueInputOption=USER_ENTERED`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ values: [headers, ...rows] })
+    });
+    
+    if (!response.ok) {
+      const errData = await response.json();
+      throw new Error(errData.error?.message || 'ไม่สามารถเขียนข้อมูลลง Google Sheets ได้');
+    }
+    
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error saving projects to list sheet:', err);
+    return { success: false, message: err.message };
+  }
+}
+
+/**
+ * Fetch project list from Google Sheet's 'รายชื่อโครงการ' tab
+ */
+export async function fetchProjectsFromProjectListSheet(
+  accessToken: string,
+  spreadsheetId: string = '1go5YGEV455ENaxoL5oQ4b55GmCOSOKdescT4mNHyBAw'
+): Promise<{ success: boolean; projects?: Project[]; message?: string }> {
+  try {
+    const tabName = 'รายชื่อโครงการ';
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(tabName)}'!A1:I1000`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }
+    );
+
+    if (!response.ok) {
+      const errData = await response.json();
+      throw new Error(errData.error?.message || 'ไม่สามารถอ่านข้อมูลจาก Google Sheets ได้');
+    }
+
+    const data = await response.json();
+    const allRows: any[][] = data.values || [];
+
+    if (allRows.length === 0) {
+      return { success: true, projects: [] };
+    }
+
+    // Header detection
+    const firstRow = allRows[0] || [];
+    const isHeader = firstRow.some((col: any) => 
+      typeof col === 'string' && (col.includes('โครงการ') || col.includes('ชื่อ') || col.includes('รหัส') || col.includes('สัญญา'))
+    );
+
+    const rows = isHeader ? allRows.slice(1) : allRows;
+
+    let nameIdx = 0;
+    let codeIdx = 1;
+    let clientIdx = 2;
+    let locIdx = 3;
+    let contractNoIdx = 4;
+    let startIdx = 5;
+    let durationIdx = 6;
+    let endIdx = 7;
+    let valIdx = 8;
+
+    if (isHeader) {
+      firstRow.forEach((col: any, idx: number) => {
+        if (typeof col !== 'string') return;
+        const colStr = col.trim();
+        if (colStr === 'ชื่อโครงการ') nameIdx = idx;
+        else if (colStr === 'รหัสโครงการ') codeIdx = idx;
+        else if (colStr.includes('ผู้ว่าจ้าง') || colStr.includes('ลูกค้า')) clientIdx = idx;
+        else if (colStr.includes('สถานที่')) locIdx = idx;
+        else if (colStr.includes('สัญญาเลขที่') || colStr.includes('สัญญาจ้าง')) contractNoIdx = idx;
+        else if (colStr.includes('เริ่มต้น')) startIdx = idx;
+        else if (colStr.includes('จำนวนวัน')) durationIdx = idx;
+        else if (colStr.includes('สิ้นสุด')) endIdx = idx;
+        else if (colStr.includes('มูลค่า')) valIdx = idx;
+      });
+    }
+
+    const projects: Project[] = rows
+      .filter((row: any[]) => row && (row[nameIdx] || row[codeIdx]) && (row[nameIdx] || '').toString().trim())
+      .map((row: any[], idx: number) => {
+        const name = (row[nameIdx] || '').toString().trim();
+        const code = (row[codeIdx] || `PP-${idx + 1}`).toString().trim();
+        const clientName = (row[clientIdx] || 'ลูกค้าทั่วไป').toString().trim();
+        const location = (row[locIdx] || '').toString().trim();
+        const contractNo = (row[contractNoIdx] || '').toString().trim();
+        const startDate = (row[startIdx] || new Date().toISOString().split('T')[0]).toString().trim();
+        const endDate = (row[endIdx] || new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0]).toString().trim();
+        const contractValue = parseFloat((row[valIdx] || '0').toString().replace(/,/g, '')) || 0;
+
+        return {
+          id: `proj-gsheet-${idx + 1}-${code || idx}`,
+          code,
+          name,
+          startDate,
+          endDate,
+          clientName,
+          contractValue,
+          budget: contractValue,
+          location,
+          contractNo,
+          sheetUrlIncome: '',
+          sheetUrlBilling: '',
+          plannerSheetUrl: '',
+          sheetTabName: name,
+          status: 'active' as const
+        };
+      });
+
+    return { success: true, projects };
+  } catch (err: any) {
+    console.error('Error fetching projects from list sheet:', err);
+    return { success: false, message: err.message };
+  }
+}
+
+/**
+ * Save / sync construction planner tasks to a dedicated tab (named after project) in Google Sheet
+ */
+export async function saveProjectPlannerTasksToSheet(
+  accessToken: string,
+  spreadsheetId: string = '1go5YGEV455ENaxoL5oQ4b55GmCOSOKdescT4mNHyBAw',
+  sheetTitle: string,
+  projectInfo: Partial<Project>,
+  phases: { id: string; name: string; order: number }[],
+  tasks: {
+    id: string;
+    phaseId: string;
+    name: string;
+    startDate: string;
+    endDate: string;
+    progress: number;
+    assignedTo?: string;
+    status: 'not_started' | 'in_progress' | 'completed' | 'delayed';
+    notes?: string;
+  }[]
+): Promise<{ success: boolean; message?: string; gid?: number | null; sheetUrl?: string; tabName?: string }> {
+  try {
+    const cleanSheetTitle = sheetTitle.trim();
+    if (!cleanSheetTitle) {
+      return { success: false, message: 'ชื่อชีตโครงการไม่ถูกต้อง' };
+    }
+
+    const headers = [
+      'ลำดับ',
+      'หมวดงาน/เฟส',
+      'ชื่องานแผนงาน',
+      'วันที่เริ่มต้น',
+      'วันที่สิ้นสุด',
+      'ความคืบหน้า (%)',
+      'ผู้รับผิดชอบ',
+      'สถานะ',
+      'หมายเหตุ'
+    ];
+
+    const gid = await ensureSheetTabExists(accessToken, spreadsheetId, cleanSheetTitle, headers);
+
+    const statusMap: Record<string, string> = {
+      not_started: 'ยังไม่เริ่มต้น',
+      in_progress: 'กำลังดำเนินงาน',
+      completed: 'เสร็จสิ้นแล้ว',
+      delayed: 'ล่าช้ากว่าแผน'
+    };
+
+    const phaseMap = new Map(phases.map(p => [p.id, p.name]));
+
+    const metaRow1 = [`โครงการ: ${projectInfo.name || cleanSheetTitle} (${projectInfo.code || ''})`];
+    const metaRow2 = [
+      `ผู้ว่าจ้าง: ${projectInfo.clientName || 'ลูกค้าทั่วไป'} | สัญญาเลขที่: ${projectInfo.contractNo || '-'} | ช่วงสัญญา: ${projectInfo.startDate || '-'} ถึง ${projectInfo.endDate || '-'} | สถานที่: ${projectInfo.location || '-'}`
+    ];
+
+    const taskRows = tasks.map((t, index) => [
+      index + 1,
+      phaseMap.get(t.phaseId) || t.phaseId || 'หมวดงานทั่วไป',
+      t.name,
+      t.startDate,
+      t.endDate,
+      t.progress || 0,
+      t.assignedTo || '-',
+      statusMap[t.status] || t.status,
+      t.notes || '-'
+    ]);
+
+    const values = [
+      metaRow1,
+      metaRow2,
+      [],
+      headers,
+      ...taskRows
+    ];
+
+    // Clear range first
+    await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(cleanSheetTitle)}'!A1:I1000:clear`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }
+    );
+
+    // Update range
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(cleanSheetTitle)}'!A1?valueInputOption=USER_ENTERED`,
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ values })
+      }
+    );
+
+    if (!response.ok) {
+      const errData = await response.json();
+      throw new Error(errData.error?.message || 'ไม่สามารถบันทึกข้อมูลแผนงานลง Google Sheets ได้');
+    }
+
+    const sheetUrl = gid !== null
+      ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${gid}`
+      : `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
+
+    return { success: true, gid, sheetUrl, tabName: cleanSheetTitle };
+  } catch (err: any) {
+    console.error('Error saving project planner tasks to sheet:', err);
+    return { success: false, message: err.message };
+  }
+}
+
+/**
+ * Fetch construction planner tasks from project's dedicated tab in Google Sheet
+ */
+export async function fetchProjectPlannerTasksFromSheet(
+  accessToken: string,
+  spreadsheetId: string = '1go5YGEV455ENaxoL5oQ4b55GmCOSOKdescT4mNHyBAw',
+  sheetTitle: string
+): Promise<{
+  success: boolean;
+  phases?: { id: string; name: string; order: number }[];
+  tasks?: {
+    id: string;
+    phaseId: string;
+    name: string;
+    startDate: string;
+    endDate: string;
+    progress: number;
+    assignedTo?: string;
+    status: 'not_started' | 'in_progress' | 'completed' | 'delayed';
+    notes?: string;
+  }[];
+  message?: string;
+}> {
+  try {
+    const cleanSheetTitle = sheetTitle.trim();
+    if (!cleanSheetTitle) {
+      return { success: false, message: 'ชื่อชีตโครงการไม่ถูกต้อง' };
+    }
+
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(cleanSheetTitle)}'!A4:I1000`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }
+    );
+
+    if (!response.ok) {
+      const errData = await response.json();
+      throw new Error(errData.error?.message || 'ไม่สามารถโหลดแผนงานจาก Google Sheets ได้');
+    }
+
+    const data = await response.json();
+    const rows: any[][] = data.values || [];
+
+    if (rows.length <= 1) {
+      return { success: true, phases: [], tasks: [] };
+    }
+
+    // Skip header row (index 0)
+    const taskRows = rows.slice(1);
+
+    const phasesMap = new Map<string, { id: string; name: string; order: number }>();
+    const tasks: any[] = [];
+
+    const statusReverseMap: Record<string, 'not_started' | 'in_progress' | 'completed' | 'delayed'> = {
+      'ยังไม่เริ่มต้น': 'not_started',
+      'กำลังดำเนินงาน': 'in_progress',
+      'เสร็จสิ้นแล้ว': 'completed',
+      'ล่าช้ากว่าแผน': 'delayed'
+    };
+
+    taskRows.forEach((row, idx) => {
+      if (!row || !row[2] || !row[2].trim()) return; // Require task name
+
+      const phaseName = row[1] && row[1].trim() ? row[1].trim() : 'หมวดงานทั่วไป';
+      let phaseId = '';
+
+      for (const [pId, pObj] of phasesMap.entries()) {
+        if (pObj.name === phaseName) {
+          phaseId = pId;
+          break;
+        }
+      }
+
+      if (!phaseId) {
+        phaseId = `phase-${phasesMap.size + 1}`;
+        phasesMap.set(phaseId, {
+          id: phaseId,
+          name: phaseName,
+          order: phasesMap.size + 1
+        });
+      }
+
+      const assignedToVal = row[6] && row[6] !== '-' ? row[6].trim() : '';
+      const statusRaw = row[7] ? row[7].trim() : (row[6] && statusReverseMap[row[6].trim()] ? row[6].trim() : 'not_started');
+      const status = statusReverseMap[statusRaw] || (['not_started', 'in_progress', 'completed', 'delayed'].includes(statusRaw) ? statusRaw as any : 'not_started');
+      const notesVal = row[8] && row[8] !== '-' ? row[8].trim() : '';
+
+      tasks.push({
+        id: `task-gsheet-${idx + 1}`,
+        phaseId,
+        name: row[2].trim(),
+        startDate: row[3] || new Date().toISOString().split('T')[0],
+        endDate: row[4] || new Date().toISOString().split('T')[0],
+        progress: parseFloat(row[5]) || 0,
+        assignedTo: assignedToVal,
+        status,
+        notes: notesVal
+      });
+    });
+
+    const phases = Array.from(phasesMap.values());
+
+    return { success: true, phases, tasks };
+  } catch (err: any) {
+    console.error('Error fetching project planner tasks from sheet:', err);
     return { success: false, message: err.message };
   }
 }

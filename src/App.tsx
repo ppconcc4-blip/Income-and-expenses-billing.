@@ -41,7 +41,6 @@ import { CategoryManagerModal } from './components/CategoryManagerModal';
 import { BillingPdfModal } from './components/BillingPdfModal';
 import { TransactionPdfModal } from './components/TransactionPdfModal';
 import { SheetPasswordModal } from './components/SheetPasswordModal';
-import { ConstructionPlanner } from './components/ConstructionPlanner';
 import { initAuth, googleSignIn, logoutGoogle, getAccessToken, db } from './lib/firebase';
 import { 
   autoSyncTransactionToSheet, 
@@ -49,6 +48,7 @@ import {
   deleteSheetTab, 
   ensureSheetTabExists, 
   updateProjectDetailsSheet,
+  saveProjectsToProjectListSheet,
   updateBillingStatusInSheet, 
   deleteTransactionInSheet, 
   deleteBillingInSheet,
@@ -85,10 +85,16 @@ export default function App() {
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(getAccessToken());
 
   useEffect(() => {
-    const unsubscribe = initAuth((user, token) => {
-      setGoogleUser(user);
-      setGoogleAccessToken(token);
-    });
+    const unsubscribe = initAuth(
+      (user, token) => {
+        setGoogleUser(user);
+        setGoogleAccessToken(token);
+      },
+      () => {
+        setGoogleUser(null);
+        setGoogleAccessToken(null);
+      }
+    );
     return () => unsubscribe();
   }, []);
 
@@ -99,8 +105,9 @@ export default function App() {
         setGoogleUser(result.user);
         setGoogleAccessToken(result.accessToken);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Google Sign-In failed:', err);
+      alert(err.message || 'ไม่สามารถเข้าสู่ระบบด้วย Google ได้');
     }
   };
 
@@ -115,34 +122,6 @@ export default function App() {
     const saved = localStorage.getItem('pp_projects');
     return saved ? JSON.parse(saved) : INITIAL_PROJECTS;
   });
-
-  // Check if we are in the standalone Construction Planner window
-  const [isPlannerMode, setIsPlannerMode] = useState<boolean>(() => {
-    return window.location.hash === '#planner' || window.location.search.includes('view=planner');
-  });
-
-  useEffect(() => {
-    const handleHashChange = () => {
-      setIsPlannerMode(window.location.hash === '#planner' || window.location.search.includes('view=planner'));
-    };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
-
-  if (isPlannerMode) {
-    return (
-      <ConstructionPlanner 
-        projects={projects} 
-        onClose={() => {
-          // Try to close tab if opened in a new tab/window
-          window.close();
-          // Fallback if window.close() is blocked or didn't work (e.g. same tab)
-          window.location.hash = '';
-          setIsPlannerMode(false);
-        }} 
-      />
-    );
-  }
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('pp_transactions');
@@ -438,7 +417,37 @@ export default function App() {
       setDoc(doc(db, 'global', 'config'), { incomeSheetId: targetIncomeId, billingSheetId: targetBillingId }, { merge: true });
     }
 
-    const res = await pullDataFromGoogleSheets(token, targetIncomeId, targetBillingId, projects);
+    let res = await pullDataFromGoogleSheets(token, targetIncomeId, targetBillingId, projects);
+    if (!res.success && res.message === 'UNAUTHORIZED') {
+      // Token has expired. If NOT silent, try to re-authenticate with Google.
+      if (!silent) {
+        try {
+          const authRes = await googleSignIn();
+          if (authRes?.accessToken) {
+            token = authRes.accessToken;
+            setGoogleUser(authRes.user);
+            setGoogleAccessToken(token);
+            // Retry pulling data
+            res = await pullDataFromGoogleSheets(token, targetIncomeId, targetBillingId, projects);
+          }
+        } catch (authErr: any) {
+          console.error("Re-authentication failed:", authErr);
+          // Clean up
+          localStorage.removeItem('google_access_token');
+          setGoogleAccessToken(null);
+          setGoogleUser(null);
+          alert(`เซสชัน Google ของคุณหมดอายุและไม่สามารถเชื่อมต่อใหม่ได้:\n${authErr.message || authErr}`);
+          return;
+        }
+      } else {
+        // Silent automatic pull failed due to expired token. Clear token silently and return.
+        localStorage.removeItem('google_access_token');
+        setGoogleAccessToken(null);
+        setGoogleUser(null);
+        return;
+      }
+    }
+
     if (res.success) {
       if (res.projects) {
         setProjects(res.projects.length > 0 ? res.projects : projects);
@@ -637,13 +646,16 @@ export default function App() {
       }
     }
 
-    setProjects(prev => prev.filter(p => p.id !== projectId));
-
-    // Update Project Details sheet
     const updatedProjects = projects.filter(p => p.id !== projectId);
-    const incId = incomeSheetId || localStorage.getItem('pp_income_sheet_id');
-    if (googleAccessToken && incId) {
-      updateProjectDetailsSheet(googleAccessToken, incId, updatedProjects).catch(err => console.error('Error updating project details after deletion:', err));
+    setProjects(updatedProjects);
+
+    // Update Project Details sheet & รายชื่อโครงการ
+    if (googleAccessToken) {
+      const incId = incomeSheetId || localStorage.getItem('pp_income_sheet_id');
+      if (incId) {
+        updateProjectDetailsSheet(googleAccessToken, incId, updatedProjects).catch(err => console.error('Error updating project details after deletion:', err));
+      }
+      saveProjectsToProjectListSheet(googleAccessToken, updatedProjects).catch(err => console.error('Error updating project list sheet after deletion:', err));
     }
   };
 
@@ -657,6 +669,8 @@ export default function App() {
       ...newProjData,
       id: `proj-${Date.now()}`
     };
+
+    const updatedProjects = [...projects, newProj];
 
     if (googleAccessToken) {
       const tabName = newProj.name.slice(0, 80);
@@ -681,17 +695,24 @@ export default function App() {
         }).catch(err => console.error('Error creating billing tab:', err));
       }
       
-      // Update Project Details sheet
-      updateProjectDetailsSheet(googleAccessToken, incId, [...projects, newProj]).catch(err => console.error('Error updating project details:', err));
+      // Update Project Details sheet & รายชื่อโครงการ
+      updateProjectDetailsSheet(googleAccessToken, incId, updatedProjects).catch(err => console.error('Error updating project details:', err));
+      saveProjectsToProjectListSheet(googleAccessToken, updatedProjects).catch(err => console.error('Error updating project list sheet:', err));
     }
 
-    setProjects(prev => [...prev, newProj]);
+    setProjects(updatedProjects);
   };
 
   const handleUpdateProject = (projectId: string, updates: Partial<Project>) => {
-    setProjects(prev => prev.map(p => 
-      p.id === projectId ? { ...p, ...updates } : p
-    ));
+    setProjects(prev => {
+      const updated = prev.map(p => 
+        p.id === projectId ? { ...p, ...updates } : p
+      );
+      if (googleAccessToken) {
+        saveProjectsToProjectListSheet(googleAccessToken, updated).catch(err => console.error('Error updating project list sheet:', err));
+      }
+      return updated;
+    });
   };
 
   return (

@@ -84,6 +84,9 @@ export interface Project {
   sheetTabName?: string; // ชื่อชีตย่อย (Tab)
   drawingDriveId?: string; // ID หรือ ลิงก์ Google Drive ไฟล์แบบแปลน (Drawing)
   boqDriveId?: string; // ID หรือ ลิงก์ Google Drive ไฟล์ BOQ (รายการปริมาณงาน)
+  location?: string; // สถานที่ก่อสร้าง
+  contractNo?: string; // สัญญาจ้างเลขที่
+  plannerSheetUrl?: string; // ลิงก์แผนงาน
 }
 
 export interface LineConfig {

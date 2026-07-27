@@ -1,0 +1,90 @@
+--- src/components/ConstructionPlanner.tsx
++++ src/components/ConstructionPlanner.tsx
+@@ -1220,11 +1220,13 @@
+ 
+             {/* WBS LEFT TABLE (Fixed/Sticky on horizontal scroll) */}
+-            <div className="w-[500px] shrink-0 border-r border-slate-800 bg-slate-900 sticky left-0 z-30 flex flex-col print:border-gray-300 print:bg-white">
++            <div className="w-[700px] shrink-0 border-r border-slate-800 bg-slate-900 sticky left-0 z-30 flex flex-col print:border-gray-300 print:bg-white">
+               
+               {/* Header */}
+-              <div className="h-[60px] border-b border-slate-800 px-4 flex items-center bg-slate-950 text-xs font-bold text-slate-400 uppercase tracking-wider sticky top-0 z-40 print:border-gray-300 print:bg-gray-100 print:text-black">
+-                <div className="w-[5%] text-center"></div>
+-                <div className="w-[65%] pl-2">หัวข้อแผนงานก่อสร้าง (WBS)</div>
+-                <div className="w-[18%] text-center">ระยะเวลา</div>
+-                <div className="w-[12%] text-center no-print">จัดการ</div>
++              <div className="h-[60px] border-b border-slate-800 px-2 flex items-center bg-slate-950 text-xs font-bold text-slate-400 uppercase tracking-wider sticky top-0 z-40 print:border-gray-300 print:bg-gray-100 print:text-black">
++                <div className="w-[32px] text-center"></div>
++                <div className="w-[240px] pl-2">หัวข้อแผนงานก่อสร้าง (WBS)</div>
++                <div className="w-[130px] text-center">วันเริ่มต้น</div>
++                <div className="w-[130px] text-center">วันสิ้นสุด</div>
++                <div className="w-[80px] text-center">ระยะเวลา</div>
++                <div className="w-[88px] text-center no-print">จัดการ</div>
+               </div>
+@@ -1239,12 +1241,14 @@
+                       
+                       {/* Phase row */}
+-                      <div className="flex items-center h-11 px-3 bg-slate-800/50 border-b border-slate-800/80 hover:bg-slate-800/70 transition-all print:bg-gray-50 print:border-gray-200">
+-                        <div className="w-[5%] flex items-center justify-center text-amber-500 print:text-black">
++                      <div className="flex items-center h-11 px-2 bg-slate-800/50 border-b border-slate-800/80 hover:bg-slate-800/70 transition-all print:bg-gray-50 print:border-gray-200">
++                        <div className="w-[32px] flex items-center justify-center text-amber-500 print:text-black">
+                           <Layers className="w-4 h-4" />
+                         </div>
+-                        <div className="w-[65%] font-bold text-white text-sm truncate pl-1 print:text-black">
++                        <div className="w-[240px] font-bold text-white text-sm truncate pl-1 print:text-black">
+                           {phase.name}
+                         </div>
+-                        <div className="w-[18%] text-center text-xs text-slate-400 font-semibold print:text-black">
++                        <div className="w-[130px]"></div>
++                        <div className="w-[130px]"></div>
++                        <div className="w-[80px] text-center text-xs text-slate-400 font-semibold print:text-black">
+                           {tasks.filter(t => t.phaseId === phase.id).length} รายการ
+                         </div>
+-                        <div className="w-[12%] flex justify-end space-x-1.5 no-print">
++                        <div className="w-[88px] flex justify-end space-x-1.5 no-print">
+                           <button
+@@ -1268,14 +1272,30 @@
+                           return (
+-                            <div key={task.id} className="flex items-center h-12 px-4 hover:bg-slate-800/30 transition-all group print:bg-white print:border-b print:border-gray-100">
+-                              <div className="w-[5%] text-[11px] text-slate-500 font-bold">{idx + 1}</div>
++                            <div key={task.id} className="flex items-center h-12 px-2 hover:bg-slate-800/30 transition-all group print:bg-white print:border-b print:border-gray-100">
++                              <div className="w-[32px] text-[11px] text-center text-slate-500 font-bold">{idx + 1}</div>
+                               
+-                              <div className="w-[65%] pl-1 pr-2 truncate">
++                              <div className="w-[240px] pl-1 pr-2 truncate">
+                                 <span className="text-xs text-slate-200 font-semibold group-hover:text-amber-300 transition-colors print:text-black block truncate">
+                                   {task.name}
+                                 </span>
+-                                <span className="text-[10px] text-slate-500 print:text-gray-500 font-semibold block">
+-                                  {task.startDate} ถึง {task.endDate}
+-                                </span>
+                               </div>
+-                              <div className="w-[18%] text-center text-xs font-black text-slate-300 print:text-black">
++                              
++                              <div className="w-[130px] px-1 text-center">
++                                <input 
++                                  type="date" 
++                                  value={task.startDate}
++                                  onChange={(e) => {
++                                    const updatedTasks = tasks.map(t => t.id === task.id ? { ...t, startDate: e.target.value } : t);
++                                    setTasks(updatedTasks);
++                                  }}
++                                  className="w-full bg-slate-950/50 border border-slate-700/50 hover:border-amber-500/50 focus:border-amber-500 rounded px-1 py-1 text-[10px] text-slate-300 focus:outline-none transition-colors cursor-pointer"
++                                />
++                              </div>
++                              <div className="w-[130px] px-1 text-center">
++                                <input 
++                                  type="date" 
++                                  value={task.endDate}
++                                  onChange={(e) => {
++                                    const updatedTasks = tasks.map(t => t.id === task.id ? { ...t, endDate: e.target.value } : t);
++                                    setTasks(updatedTasks);
++                                  }}
++                                  className="w-full bg-slate-950/50 border border-slate-700/50 hover:border-amber-500/50 focus:border-amber-500 rounded px-1 py-1 text-[10px] text-slate-300 focus:outline-none transition-colors cursor-pointer"
++                                />
++                              </div>
++                              <div className="w-[80px] text-center text-xs font-black text-slate-300 print:text-black">
+                                 {durationDays} วัน
+                               </div>
+-                              <div className="w-[12%] flex items-center justify-end space-x-1 no-print">
++                              <div className="w-[88px] flex items-center justify-end space-x-1 no-print">
+                                 <button
