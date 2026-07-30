@@ -772,7 +772,7 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
             <span>เปิดชีตค่าแรง</span>
           </button>
           <button
-            onClick={() => window.open('https://script.google.com/macros/s/AKfycbxbZZXqfVOJs0mWFWiZSDo9iPLXHQTuh4MWTXpm4ugFlvzlOMWzKnmXOaWT9TeIaTry/exec', '_blank')}
+            onClick={() => window.open('https://script.google.com/macros/s/AKfycbx9vh-SEATtDLe4FIksiaeuO4-Lgv6GFoxK8KSHqkoQDcv4LbYetfNelHUj96rkzXsw/exec?view=index', '_blank')}
             className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-md"
           >
             <Clock className="w-4 h-4" />
