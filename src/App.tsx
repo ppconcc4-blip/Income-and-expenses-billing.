@@ -710,6 +710,11 @@ export default function App() {
       );
       if (googleAccessToken) {
         saveProjectsToProjectListSheet(googleAccessToken, updated).catch(err => console.error('Error updating project list sheet:', err));
+        
+        const incId = incomeSheetId || localStorage.getItem('pp_income_sheet_id');
+        if (incId) {
+          updateProjectDetailsSheet(googleAccessToken, incId, updated).catch(err => console.error('Error updating project details:', err));
+        }
       }
       return updated;
     });
