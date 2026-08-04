@@ -865,10 +865,10 @@ export default function App() {
             </div>
 
             {/* Desktop Action Buttons */}
-            <div className="hidden md:flex items-center space-x-2">
+            <div className="flex items-center space-x-2">
               <button
                 onClick={() => setIsSheetViewerOpen(true)}
-                className="flex items-center space-x-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 text-xs font-bold px-3 py-1.5 rounded-xl transition-all"
+                className="flex items-center space-x-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 text-xs font-bold px-3 py-1.5 rounded-xl transition-all shadow-sm"
               >
                 <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
                 <span>เปิดดูตัวอย่างชีต</span>
