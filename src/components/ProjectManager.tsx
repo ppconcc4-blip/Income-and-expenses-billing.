@@ -262,33 +262,8 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
               })()}
             </div>
 
-            {/* Google Sheets & Drive Action Links for this Project */}
+            {/* Google Drive Links for แบบ & BOQ */}
             <div className="pt-3 border-t border-slate-800 space-y-2">
-              <div className="flex items-center space-x-2">
-                <a
-                  href={p.sheetUrlIncome || (incomeSheetId ? `https://docs.google.com/spreadsheets/d/${incomeSheetId}/edit` : '#')}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 flex items-center justify-center space-x-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 text-xs font-bold py-2 px-2 rounded-xl transition-all"
-                  title="เปิด Google Sheets บัญชีงานนี้"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>ชีตรายรับจ่าย</span>
-                  <ExternalLink className="w-3 h-3 opacity-70" />
-                </a>
-
-                <a
-                  href={p.sheetUrlBilling || (billingSheetId ? `https://docs.google.com/spreadsheets/d/${billingSheetId}/edit` : '#')}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 flex items-center justify-center space-x-1.5 bg-blue-950 hover:bg-blue-900 border border-blue-500/40 text-blue-300 text-xs font-bold py-2 px-2 rounded-xl transition-all"
-                  title="เปิด Google Sheets การวางบิลงานนี้"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-blue-400" />
-                  <span>ชีตวางบิล</span>
-                  <ExternalLink className="w-3 h-3 opacity-70" />
-                </a>
-              </div>
 
               {/* Google Drive Links for แบบ & BOQ */}
               <div className="flex items-center space-x-2">
