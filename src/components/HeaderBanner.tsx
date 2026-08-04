@@ -122,37 +122,9 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
               </button>
             )}
 
-            {/* Direct Google Sheets Icon Buttons */}
+            {/* Header Tools */}
             <div className="flex items-center space-x-2 bg-slate-800/90 p-1.5 rounded-xl border border-slate-700">
-              {incomeSheetId && (
-                <a
-                  href={`https://docs.google.com/spreadsheets/d/${incomeSheetId}/edit`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="เปิด Google Sheets บัญชีรายรับ-รายจ่าย"
-                  className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-2.5 py-2 rounded-lg transition-all shadow-sm group"
-                >
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-100 group-hover:scale-110 transition-transform" />
-                  <span className="hidden sm:inline">รายรับรายจ่าย</span>
-                  <ExternalLink className="w-3 h-3 opacity-70" />
-                </a>
-              )}
-
-              {billingSheetId && (
-                <a
-                  href={`https://docs.google.com/spreadsheets/d/${billingSheetId}/edit`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="เปิด Google Sheets ระบบการวางบิล"
-                  className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-2.5 py-2 rounded-lg transition-all shadow-sm group"
-                >
-                  <FileSpreadsheet className="w-4 h-4 text-blue-100 group-hover:scale-110 transition-transform" />
-                  <span className="hidden sm:inline">วางบิล</span>
-                  <ExternalLink className="w-3 h-3 opacity-70" />
-                </a>
-              )}
-
-            {onPullFromSheets && (
+              {onPullFromSheets && (
                 <button
                   onClick={async () => {
                     setIsPulling(true);
