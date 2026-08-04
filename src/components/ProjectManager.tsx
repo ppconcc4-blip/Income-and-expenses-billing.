@@ -15,7 +15,7 @@ import {
   Ruler,
   ClipboardList
 } from 'lucide-react';
-import { Project } from '../types';
+import { Project, Transaction } from '../types';
 import { DEFAULT_SHEET_INCOME, DEFAULT_SHEET_BILLING } from '../data/mockData';
 
 export const getGoogleDriveUrl = (idOrUrl?: string) => {
@@ -29,6 +29,7 @@ export const getGoogleDriveUrl = (idOrUrl?: string) => {
 
 interface ProjectManagerProps {
   projects: Project[];
+  transactions?: Transaction[];
   isOpenModal: boolean;
   onCloseModal: () => void;
   onOpenModal: () => void;
@@ -42,6 +43,7 @@ interface ProjectManagerProps {
 
 export const ProjectManager: React.FC<ProjectManagerProps> = ({
   projects,
+  transactions = [],
   isOpenModal,
   onCloseModal,
   onOpenModal,
@@ -234,16 +236,30 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-800 text-xs">
-                <div>
-                  <span className="text-slate-500 text-[10px] block">มูลค่าสัญญา:</span>
-                  <span className="font-bold text-emerald-400">฿{p.contractValue.toLocaleString('th-TH')}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 text-[10px] block">งบประมาณ:</span>
-                  <span className="font-bold text-amber-400">฿{p.budget.toLocaleString('th-TH')}</span>
-                </div>
-              </div>
+              {(() => {
+                const projectTxs = transactions.filter(
+                  t => t.projectId === p.id || t.projectCode === p.code
+                );
+                const totalIncome = projectTxs
+                  .filter(t => t.type === 'income')
+                  .reduce((sum, t) => sum + (t.amount || 0), 0);
+                const totalExpense = projectTxs
+                  .filter(t => t.type === 'expense')
+                  .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+                return (
+                  <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-800 text-xs">
+                    <div>
+                      <span className="text-slate-500 text-[10px] block">รายรับรวม:</span>
+                      <span className="font-bold text-emerald-400">฿{totalIncome.toLocaleString('th-TH')}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 text-[10px] block">รายจ่ายรวม:</span>
+                      <span className="font-bold text-amber-400">฿{totalExpense.toLocaleString('th-TH')}</span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Google Sheets & Drive Action Links for this Project */}
