@@ -38,20 +38,16 @@ interface MobileQuickFormProps {
 
 const DEFAULT_EXPENSE_CATS = [
   'ค่าวัสดุก่อสร้าง',
-  'ค่าแรงงาน',
+  'ค่าแรงคนงาน',
+  'ค่าน้ำมัน',
+  'ค่าเดินทาง',
+  'ค่าทางด่วน',
   'ค่าเครื่องจักรและอุปกรณ์',
-  'ค่าผู้รับเหมาช่วง',
-  'ค่าออกแบบและวิศวกร',
-  'ค่าบริหารงานโครงการ',
-  'ค่าสาธารณูปโภค/เชื้อเพลิง',
-  'อื่นๆ'
+  'ค่าซ่อมเครื่องมือ'
 ];
 
 const DEFAULT_INCOME_CATS = [
-  'ค่างวดงานก้าวหน้า',
-  'เงินมัดจำ/เบิกล่วงหน้า',
-  'เงินประกันผลงานคืน (Retention)',
-  'รายรับอื่นๆ'
+  'เงินสำรองหน้างาน'
 ];
 
 export const MobileQuickForm: React.FC<MobileQuickFormProps> = ({
@@ -108,6 +104,12 @@ export const MobileQuickForm: React.FC<MobileQuickFormProps> = ({
     }
   }, [isOpen, initialTab]);
 
+  React.useEffect(() => {
+    if (category === 'ค่าแรงคนงาน') {
+      setPayerOrPayee('ค่าแรงคนงาน');
+    }
+  }, [category]);
+
   if (!isOpen) return null;
 
   const currentProject = projects.find(p => p.id === selectedProjectId) || projects[0];
@@ -144,6 +146,10 @@ export const MobileQuickForm: React.FC<MobileQuickFormProps> = ({
 
     try {
       if (formType === 'income' || formType === 'expense') {
+        const finalPayee = category === 'ค่าแรงคนงาน' 
+          ? 'ค่าแรงคนงาน' 
+          : (payerOrPayee || (formType === 'income' ? currentProject.clientName : 'ร้านค้า/ผู้รับเหมา'));
+
         const txObj: Omit<Transaction, 'id' | 'createdAt'> = {
           projectId: currentProject.id,
           projectCode: currentProject.code,
@@ -152,7 +158,7 @@ export const MobileQuickForm: React.FC<MobileQuickFormProps> = ({
           amount: numAmount,
           date,
           description: description || `${formType === 'income' ? 'รับเงิน' : 'จ่ายเงิน'} ${category}`,
-          payerOrPayee: payerOrPayee || (formType === 'income' ? currentProject.clientName : 'ร้านค้า/ผู้รับเหมา'),
+          payerOrPayee: finalPayee,
           documentNo,
           paymentMethod,
           sheetUrl: currentProject.sheetUrlIncome
