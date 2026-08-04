@@ -250,30 +250,6 @@ export const GoogleSheetModal: React.FC<GoogleSheetModalProps> = ({
               {createMsg.success ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
               <span>{createMsg.msg}</span>
             </div>
-            <div className="flex items-center gap-2">
-              {createMsg.incomeUrl && (
-                <a
-                  href={createMsg.incomeUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="bg-emerald-500 text-slate-950 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 hover:bg-emerald-400"
-                >
-                  <span>เปิดชีตรายรับรายจ่าย</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
-              {createMsg.billingUrl && (
-                <a
-                  href={createMsg.billingUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="bg-blue-500 text-white px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 hover:bg-blue-400"
-                >
-                  <span>เปิดชีตการวางบิล</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
-            </div>
           </div>
         )}
 
