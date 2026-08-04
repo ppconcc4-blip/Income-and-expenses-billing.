@@ -59,20 +59,16 @@ import {
 
 const DEFAULT_EXPENSE_CATS = [
   'ค่าวัสดุก่อสร้าง',
-  'ค่าแรงงาน',
+  'ค่าแรงคนงาน',
+  'ค่าน้ำมัน',
+  'ค่าเดินทาง',
+  'ค่าทางด่วน',
   'ค่าเครื่องจักรและอุปกรณ์',
-  'ค่าผู้รับเหมาช่วง',
-  'ค่าออกแบบและวิศวกร',
-  'ค่าบริหารงานโครงการ',
-  'ค่าสาธารณูปโภค/เชื้อเพลิง',
-  'อื่นๆ'
+  'ค่าซ่อมเครื่องมือ'
 ];
 
 const DEFAULT_INCOME_CATS = [
-  'ค่างวดงานก้าวหน้า',
-  'เงินมัดจำ/เบิกล่วงหน้า',
-  'เงินประกันผลงานคืน (Retention)',
-  'รายรับอื่นๆ'
+  'เงินสำรองหน้างาน'
 ];
 import { User } from 'firebase/auth';
 
@@ -136,12 +132,35 @@ export default function App() {
   // Category States
   const [expenseCategories, setExpenseCategories] = useState<string[]>(() => {
     const saved = localStorage.getItem('pp_expense_categories');
-    return saved ? JSON.parse(saved) : DEFAULT_EXPENSE_CATS;
+    if (saved) {
+      try {
+        const parsed: string[] = JSON.parse(saved);
+        const hasOldDefaults = parsed.includes('ค่าแรงงาน') || parsed.includes('ค่าผู้รับเหมาช่วง') || parsed.includes('ค่าสาธารณูปโภค/เชื้อเพลิง');
+        if (!hasOldDefaults) {
+          if (!parsed.includes('ค่าแรงคนงาน')) {
+            parsed.splice(1, 0, 'ค่าแรงคนงาน');
+          }
+          return parsed;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return DEFAULT_EXPENSE_CATS;
   });
 
   const [incomeCategories, setIncomeCategories] = useState<string[]>(() => {
     const saved = localStorage.getItem('pp_income_categories');
-    return saved ? JSON.parse(saved) : DEFAULT_INCOME_CATS;
+    if (saved) {
+      try {
+        const parsed: string[] = JSON.parse(saved);
+        const hasOldDefaults = parsed.includes('ค่างวดงานก้าวหน้า') || parsed.includes('เงินมัดจำ/เบิกล่วงหน้า') || parsed.includes('รายรับอื่นๆ');
+        if (!hasOldDefaults) return parsed;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return DEFAULT_INCOME_CATS;
   });
 
   // Google Folder Sheets Tracking
@@ -502,8 +521,13 @@ export default function App() {
       setToastMessage('กรุณาเข้าสู่ระบบก่อนบันทึกรายการ');
       return;
     }
+    const finalPayerOrPayee = newTxData.category === 'ค่าแรงคนงาน' 
+      ? 'ค่าแรงคนงาน' 
+      : newTxData.payerOrPayee;
+
     const newTx: Transaction = {
       ...newTxData,
+      payerOrPayee: finalPayerOrPayee,
       id: `tx-${Date.now()}`,
       createdAt: new Date().toISOString()
     };
@@ -932,6 +956,7 @@ export default function App() {
         {activeTab === 'projects' && (
           <ProjectManager
             projects={projects}
+            transactions={transactions}
             isOpenModal={isNewProjectModalOpen}
             onOpenModal={() => {
               if (!googleUser) {
