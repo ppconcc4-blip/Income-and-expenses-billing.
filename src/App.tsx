@@ -695,6 +695,15 @@ export default function App() {
       setToastMessage('กรุณาเข้าสู่ระบบก่อนเพิ่มโครงการ');
       return;
     }
+    const isDuplicate = projects.some(
+      p => p.code.trim().toLowerCase() === newProjData.code.trim().toLowerCase()
+    );
+    if (isDuplicate) {
+      setToastMessage(`รหัสโครงการ "${newProjData.code}" ซ้ำในระบบ`);
+      alert(`ไม่สามารถเพิ่มโครงการได้: รหัสโครงการ "${newProjData.code}" มีในระบบแล้ว`);
+      return;
+    }
+
     const newProj: Project = {
       ...newProjData,
       id: `proj-${Date.now()}`
@@ -734,6 +743,17 @@ export default function App() {
   };
 
   const handleUpdateProject = (projectId: string, updates: Partial<Project>) => {
+    if (updates.code) {
+      const isDuplicate = projects.some(
+        p => p.id !== projectId && p.code.trim().toLowerCase() === updates.code.trim().toLowerCase()
+      );
+      if (isDuplicate) {
+        setToastMessage(`รหัสโครงการ "${updates.code}" ซ้ำในระบบ`);
+        alert(`ไม่สามารถแก้ไขโครงการได้: รหัสโครงการ "${updates.code}" มีในระบบแล้ว`);
+        return;
+      }
+    }
+
     setProjects(prev => {
       const updated = prev.map(p => 
         p.id === projectId ? { ...p, ...updates } : p
