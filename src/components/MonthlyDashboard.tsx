@@ -10,7 +10,11 @@ import {
   Calendar, 
   Building2,
   FileSpreadsheet,
-  ExternalLink
+  ExternalLink,
+  Users,
+  Search,
+  ArrowUpDown,
+  UserCheck
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -47,6 +51,8 @@ export const MonthlyDashboard: React.FC<MonthlyDashboardProps> = ({
 }) => {
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [payerSearch, setPayerSearch] = useState<string>('');
+  const [payerSort, setPayerSort] = useState<'total' | 'expense' | 'income' | 'net'>('total');
 
   // Available unique YYYY-MM months from transactions & billing
   const availableMonths = useMemo(() => {
@@ -146,8 +152,10 @@ export const MonthlyDashboard: React.FC<MonthlyDashboardProps> = ({
         .filter(t => t.projectId === p.id && t.type === 'expense')
         .reduce((s, t) => s + t.amount, 0);
       return {
-        name: p.code,
-        fullName: p.name,
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        client: p.clientName,
         budget: p.budget,
         income: pIncome,
         expense: pExpense,
@@ -155,6 +163,41 @@ export const MonthlyDashboard: React.FC<MonthlyDashboardProps> = ({
       };
     });
   }, [projects, transactions]);
+
+  // Payer / Payee Aggregate Summary Data
+  const payerPayeeData = useMemo(() => {
+    const map: Record<string, { name: string; income: number; expense: number; net: number; count: number }> = {};
+
+    filteredTransactions.forEach(t => {
+      const rawName = (t.payerOrPayee || '').trim();
+      const name = rawName ? rawName : 'ไม่ระบุชื่อผู้รับ/ผู้จ่าย';
+
+      if (!map[name]) {
+        map[name] = { name, income: 0, expense: 0, net: 0, count: 0 };
+      }
+
+      if (t.type === 'income') {
+        map[name].income += t.amount;
+      } else if (t.type === 'expense') {
+        map[name].expense += t.amount;
+      }
+      map[name].net = map[name].income - map[name].expense;
+      map[name].count += 1;
+    });
+
+    return Object.values(map);
+  }, [filteredTransactions]);
+
+  const filteredAndSortedPayers = useMemo(() => {
+    return payerPayeeData
+      .filter(p => p.name.toLowerCase().includes(payerSearch.toLowerCase().trim()))
+      .sort((a, b) => {
+        if (payerSort === 'expense') return b.expense - a.expense;
+        if (payerSort === 'income') return b.income - a.income;
+        if (payerSort === 'net') return Math.abs(b.net) - Math.abs(a.net);
+        return (b.income + b.expense) - (a.income + a.expense);
+      });
+  }, [payerPayeeData, payerSearch, payerSort]);
 
   const currentProject = projects.find(p => p.id === selectedProjectId);
 
@@ -166,10 +209,10 @@ export const MonthlyDashboard: React.FC<MonthlyDashboardProps> = ({
         <div>
           <h2 className="text-lg sm:text-xl font-extrabold text-white flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-amber-400" />
-            สรุปผลการดำเนินงานรายเดือน & กราฟภาพรวม
+            สรุปผลรายเดือน & รายรับ-รายจ่ายตามผู้รับ/ผู้จ่าย
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            อัปเดตข้อมูลอัตโนมัติ Real-time พร้อมวิเคราะห์กระแสเงินสดรายโครงการ
+            อัปเดตข้อมูลอัตโนมัติ Real-time พร้อมเลือกกรองข้อมูลรายโครงการและรายเดือน
           </p>
         </div>
 
@@ -224,6 +267,135 @@ export const MonthlyDashboard: React.FC<MonthlyDashboardProps> = ({
             </a>
           )}
         </div>
+      </div>
+
+      {/* Section 1: Payer / Payee Balance Summary Table (No Bar Chart) */}
+      <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg space-y-4">
+        
+        {/* Header & Controls */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-800">
+          <div>
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <Users className="w-5 h-5 text-amber-400" />
+              สรุปยอดรับ-จ่าย และคงเหลือ แยกตามผู้รับเงิน / ผู้จ่ายเงิน
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              รวม {payerPayeeData.length} รายชื่อ | วิเคราะห์กระแสเงินสดแยกตามผู้รับหรือผู้จ่ายเงิน
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Search Input */}
+            <div className="relative flex-1 sm:w-56">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="ค้นหาชื่อผู้รับ/ผู้จ่าย..."
+                value={payerSearch}
+                onChange={(e) => setPayerSearch(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            {/* Sort Selection */}
+            <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-700 px-3 py-1.5 rounded-xl">
+              <ArrowUpDown className="w-3.5 h-3.5 text-amber-400" />
+              <select
+                value={payerSort}
+                onChange={(e) => setPayerSort(e.target.value as any)}
+                className="bg-transparent text-xs font-semibold text-white focus:outline-none cursor-pointer"
+              >
+                <option value="total" className="bg-slate-900 text-white">เรียงตาม มูลค่ารวมสูงสุด</option>
+                <option value="expense" className="bg-slate-900 text-white">เรียงตาม รายจ่ายสูงสุด</option>
+                <option value="income" className="bg-slate-900 text-white">เรียงตาม รายรับสูงสุด</option>
+                <option value="net" className="bg-slate-900 text-white">เรียงตาม ยอดคงเหลือสูงสุด</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Detailed Payers/Payees Table */}
+        <div className="overflow-x-auto rounded-xl border border-slate-800">
+          <table className="w-full text-left text-xs text-slate-300">
+            <thead className="bg-slate-950 text-slate-400 uppercase tracking-wider text-[11px]">
+              <tr>
+                <th className="py-3 px-4">ชื่อผู้รับเงิน / ผู้จ่ายเงิน</th>
+                <th className="py-3 px-4 text-center">จำนวนรายการ</th>
+                <th className="py-3 px-4 text-right text-emerald-400">รายรับรวม</th>
+                <th className="py-3 px-4 text-right text-red-400">รายจ่ายรวม</th>
+                <th className="py-3 px-4 text-right text-amber-400">คงเหลือสุทธิ</th>
+                <th className="py-3 px-4 text-center">สัดส่วนกระแสเงิน</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/80 bg-slate-900/40">
+              {filteredAndSortedPayers.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-slate-500">
+                    ไม่พบข้อมูลผู้รับเงิน/ผู้จ่ายเงินตามเงื่อนไขที่เลือก
+                  </td>
+                </tr>
+              ) : (
+                filteredAndSortedPayers.map((item, idx) => {
+                  const totalVolume = item.income + item.expense;
+                  const expensePercent = totalVolume > 0 ? Math.round((item.expense / totalVolume) * 100) : 0;
+                  const incomePercent = totalVolume > 0 ? Math.round((item.income / totalVolume) * 100) : 0;
+
+                  return (
+                    <tr key={idx} className="hover:bg-slate-800/50 transition-colors">
+                      <td className="py-3 px-4 font-bold text-white flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-slate-300 font-extrabold text-[11px] shrink-0 border border-slate-700">
+                          {item.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="truncate max-w-[200px] sm:max-w-xs">{item.name}</span>
+                      </td>
+                      <td className="py-3 px-4 text-center text-slate-400 font-semibold">
+                        {item.count} รายการ
+                      </td>
+                      <td className="py-3 px-4 text-right font-bold text-emerald-400">
+                        {item.income > 0 ? `+฿${item.income.toLocaleString('th-TH')}` : '-'}
+                      </td>
+                      <td className="py-3 px-4 text-right font-bold text-red-400">
+                        {item.expense > 0 ? `-฿${item.expense.toLocaleString('th-TH')}` : '-'}
+                      </td>
+                      <td className="py-3 px-4 text-right font-black">
+                        <span className={`inline-block px-2 py-0.5 rounded-lg border text-xs ${
+                          item.net > 0 
+                            ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-400' 
+                            : item.net < 0 
+                            ? 'bg-red-950/80 border-red-500/40 text-red-400' 
+                            : 'bg-slate-800 border-slate-700 text-slate-400'
+                        }`}>
+                          {item.net > 0 ? `+฿${item.net.toLocaleString('th-TH')}` : item.net < 0 ? `-฿${Math.abs(item.net).toLocaleString('th-TH')}` : '฿0'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="w-24 sm:w-32 mx-auto space-y-1">
+                          <div className="flex h-2 rounded-full overflow-hidden bg-slate-800">
+                            <div className="bg-emerald-500 h-full" style={{ width: `${incomePercent}%` }} title={`รายรับ: ${incomePercent}%`} />
+                            <div className="bg-red-500 h-full" style={{ width: `${expensePercent}%` }} title={`รายจ่าย: ${expensePercent}%`} />
+                          </div>
+                          <div className="flex justify-between text-[10px] text-slate-400">
+                            <span className="text-emerald-400 font-semibold">{incomePercent}%</span>
+                            <span className="text-red-400 font-semibold">{expensePercent}%</span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+      {/* Section 2: สรุปผลการดำเนินงานรายเดือน & กราฟภาพรวม */}
+      <div className="pt-2">
+        <h3 className="text-base font-bold text-white mb-3 flex items-center gap-2">
+          <BarChart3 className="w-5 h-5 text-amber-400" />
+          สรุปผลการดำเนินงานรายเดือน & กราฟภาพรวม
+        </h3>
       </div>
 
       {/* Metric Cards Grid */}
@@ -346,87 +518,66 @@ export const MonthlyDashboard: React.FC<MonthlyDashboardProps> = ({
                 <p className="text-xs text-slate-400">เปรียบเทียบมูลค่าการเข้า-ออกของเงินในแต่ละช่วงเดือน</p>
               </div>
             </div>
-
-            <div className="h-72 w-full mt-2">
+            <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={monthlyComparisonData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                   <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} />
-                  <YAxis stroke="#94a3b8" fontSize={10} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
+                  <YAxis stroke="#94a3b8" fontSize={11} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.75rem', color: '#fff' }}
                     formatter={(value: any) => [`฿${Number(value).toLocaleString('th-TH')}`, '']}
                   />
-                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                  <Bar dataKey="income" name="รายรับ (Income)" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="expense" name="รายจ่าย (Expense)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                  <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                  <Bar dataKey="income" name="รายรับ" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="expense" name="รายจ่าย" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="net" name="คงเหลือ" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
         </div>
 
-        {/* Chart 2: Category Expense Donut Chart */}
+        {/* Chart 2: Expense Breakdown by Category Pie Chart */}
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg flex flex-col justify-between">
           <div>
-            <div className="mb-3">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <PieChartIcon className="w-4 h-4 text-amber-400" />
-                สัดส่วนค่าใช้จ่ายตามหมวดหมู่
-              </h3>
-              <p className="text-xs text-slate-400">วิเคราะห์ค่าใช้จ่ายหลักในไซต์งานก่อสร้าง</p>
-            </div>
-
+            <h3 className="text-base font-bold text-white mb-1 flex items-center gap-2">
+              <PieChartIcon className="w-4 h-4 text-purple-400" />
+              สัดส่วนรายจ่ายตามหมวดหมู่
+            </h3>
+            <p className="text-xs text-slate-400 mb-2">จำแนกตามหมวดหมู่รายจ่ายที่เกิดขึ้น</p>
             {categoryExpenseData.length === 0 ? (
               <div className="h-64 flex items-center justify-center text-slate-500 text-xs">
                 ยังไม่มีข้อมูลรายจ่ายตามหมวดหมู่
               </div>
             ) : (
-              <div className="h-64 w-full relative">
+              <div className="h-72 w-full mt-2">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={categoryExpenseData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={50}
-                      outerRadius={80}
-                      paddingAngle={3}
+                      innerRadius={55}
+                      outerRadius={85}
+                      paddingAngle={4}
                       dataKey="value"
                     >
-                      {categoryExpenseData.map((entry, index) => (
+                      {categoryExpenseData.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip 
                       contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.75rem', color: '#fff' }}
-                      formatter={(value: any) => [`฿${Number(value).toLocaleString('th-TH')}`, '']}
+                      formatter={(value: any) => [`฿${Number(value).toLocaleString('th-TH')}`, 'มวลรวม']}
                     />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
             )}
           </div>
-
-          {/* Donut Legend Items List */}
-          <div className="space-y-1.5 mt-2 max-h-36 overflow-y-auto pr-1">
-            {categoryExpenseData.map((cat, idx) => (
-              <div key={cat.name} className="flex items-center justify-between text-xs p-1.5 rounded-lg bg-slate-950/60">
-                <div className="flex items-center space-x-2 truncate">
-                  <div 
-                    className="w-2.5 h-2.5 rounded-full shrink-0" 
-                    style={{ backgroundColor: COLORS[idx % COLORS.length] }} 
-                  />
-                  <span className="text-slate-300 truncate">{cat.name}</span>
-                </div>
-                <span className="font-bold text-white shrink-0 ml-2">
-                  ฿{cat.value.toLocaleString('th-TH')}
-                </span>
-              </div>
-            ))}
-          </div>
         </div>
-
       </div>
 
       {/* Chart 3: Project Budget vs Expenditure Progress */}
@@ -436,43 +587,41 @@ export const MonthlyDashboard: React.FC<MonthlyDashboardProps> = ({
           ภาพรวมงบประมาณและการเบิกจ่ายรายโครงการ
         </h3>
         <p className="text-xs text-slate-400 mb-4">
-          เปรียบเทียบมูลค่าสัญญา (Contract Value), งบประมาณ (Budget) และค่าใช้จ่ายจริง
+          เปรียบเทียบสัดส่วนรายจ่ายเทียบกับงบประมาณโครงการ และอัตราการรับเงินเทียบกับมูลค่าสัญญา
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {projectComparisonData.map((item) => {
-            const spentPercent = item.budget > 0 ? Math.min(Math.round((item.expense / item.budget) * 100), 100) : 0;
-            const incomePercent = item.contract > 0 ? Math.min(Math.round((item.income / item.contract) * 100), 100) : 0;
+            const expensePercent = item.budget > 0 ? Math.min(100, Math.round((item.expense / item.budget) * 100)) : 0;
+            const incomePercent = item.contract > 0 ? Math.min(100, Math.round((item.income / item.contract) * 100)) : 0;
 
             return (
-              <div key={item.name} className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="bg-amber-500/20 text-amber-300 text-[10px] font-extrabold px-2 py-0.5 rounded border border-amber-500/30">
-                      {item.name}
-                    </span>
-                    <h4 className="text-sm font-bold text-white mt-1 line-clamp-1">
-                      {item.fullName}
-                    </h4>
-                  </div>
+              <div key={item.id} className="bg-slate-950/70 border border-slate-800 p-4 rounded-xl space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <span className="font-bold text-white text-xs truncate max-w-[180px]">
+                    [{item.code}] {item.name}
+                  </span>
+                  <span className="text-[10px] font-semibold text-slate-400 px-2 py-0.5 bg-slate-900 rounded-md border border-slate-800">
+                    {item.client}
+                  </span>
                 </div>
 
                 {/* Progress 1: Expense vs Budget */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400">ค่าใช้จ่ายจริง / งบประมาณ:</span>
-                    <span className="font-bold text-amber-400">{spentPercent}%</span>
+                    <span className="text-slate-400">ใช้จ่าย / งบประมาณ:</span>
+                    <span className={`font-bold ${expensePercent > 90 ? 'text-red-400' : 'text-amber-400'}`}>
+                      {expensePercent}%
+                    </span>
                   </div>
                   <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
                     <div 
-                      className={`h-full transition-all duration-500 ${
-                        spentPercent > 90 ? 'bg-red-500' : 'bg-amber-400'
-                      }`} 
-                      style={{ width: `${spentPercent}%` }}
+                      className={`h-full transition-all duration-500 ${expensePercent > 90 ? 'bg-red-500' : 'bg-amber-500'}`} 
+                      style={{ width: `${expensePercent}%` }}
                     />
                   </div>
                   <div className="flex justify-between text-[11px] text-slate-500">
-                    <span>ใช้ไป ฿{(item.expense / 1000000).toFixed(2)}M</span>
+                    <span>จ่ายแล้ว ฿{(item.expense / 1000000).toFixed(2)}M</span>
                     <span>งบ ฿{(item.budget / 1000000).toFixed(2)}M</span>
                   </div>
                 </div>
