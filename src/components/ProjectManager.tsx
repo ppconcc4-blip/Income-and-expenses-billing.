@@ -84,6 +84,27 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
   const [editDrawingDriveId, setEditDrawingDriveId] = useState<string>('');
   const [editBoqDriveId, setEditBoqDriveId] = useState<string>('');
 
+  // Auto-generate code when modal opens
+  useEffect(() => {
+    if (isOpenModal) {
+      let nextNum = projects.length + 1;
+      let newCode = `PP-2026-0${nextNum}`;
+      while (projects.some(p => p.code.trim().toLowerCase() === newCode.trim().toLowerCase())) {
+        nextNum++;
+        newCode = `PP-2026-${nextNum < 10 ? '0' + nextNum : nextNum}`;
+      }
+      setCode(newCode);
+    }
+  }, [isOpenModal, projects]);
+
+  const isAddCodeDuplicate = code.trim() !== '' && projects.some(
+    p => p.code.trim().toLowerCase() === code.trim().toLowerCase()
+  );
+
+  const isEditCodeDuplicate = projectToEdit !== null && editCode.trim() !== '' && projects.some(
+    p => p.id !== projectToEdit.id && p.code.trim().toLowerCase() === editCode.trim().toLowerCase()
+  );
+
   useEffect(() => {
     if (projectToEdit) {
       setEditCode(projectToEdit.code);
@@ -103,6 +124,19 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
     e.preventDefault();
     if (!projectToEdit || !onUpdateProject) return;
 
+    if (!editCode.trim()) {
+      alert('กรุณากรอกรหัสโครงการ');
+      return;
+    }
+    if (isEditCodeDuplicate) {
+      alert(`รหัสโครงการ "${editCode.trim()}" มีในระบบแล้ว กรุณาใช้รหัสอื่น`);
+      return;
+    }
+    if (!editName.trim()) {
+      alert('กรุณากรอกชื่อโครงการ');
+      return;
+    }
+
     onUpdateProject(projectToEdit.id, {
       code: editCode.trim() || projectToEdit.code,
       name: editName.trim() || projectToEdit.name,
@@ -120,14 +154,22 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name) {
+    if (!code.trim()) {
+      alert('กรุณากรอกรหัสโครงการ');
+      return;
+    }
+    if (isAddCodeDuplicate) {
+      alert(`รหัสโครงการ "${code.trim()}" มีในระบบแล้ว กรุณาใช้รหัสอื่น`);
+      return;
+    }
+    if (!name.trim()) {
       alert('กรุณากรอกชื่อโครงการก่อสร้าง');
       return;
     }
 
     onAddProject({
-      code: code || `PP-2026-${Date.now().toString().slice(-2)}`,
-      name,
+      code: code.trim(),
+      name: name.trim(),
       clientName: clientName.trim() || 'ไม่ระบุ',
       contractValue: parseFloat(contractValue) || 0,
       budget: parseFloat(budget) || 0,
@@ -344,14 +386,24 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    รหัสโครงการ
+                    รหัสโครงการ <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="text"
+                    required
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                    className={`w-full bg-slate-950 border text-white rounded-xl px-3 py-2 text-xs focus:outline-none ${
+                      isAddCodeDuplicate 
+                        ? 'border-red-500 focus:border-red-500 text-red-300' 
+                        : 'border-slate-700 focus:border-amber-400'
+                    }`}
                   />
+                  {isAddCodeDuplicate && (
+                    <p className="text-[11px] text-red-400 font-bold mt-1">
+                      ⚠️ รหัสโครงการนี้มีในระบบแล้ว
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
@@ -478,7 +530,12 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 font-extrabold text-xs text-slate-950 rounded-xl transition-all shadow-md"
+                disabled={isAddCodeDuplicate || !code.trim() || !name.trim()}
+                className={`w-full py-2.5 font-extrabold text-xs rounded-xl transition-all shadow-md ${
+                  isAddCodeDuplicate || !code.trim() || !name.trim()
+                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    : 'bg-amber-400 hover:bg-amber-300 text-slate-950'
+                }`}
               >
                 บันทึกสร้างโครงการใหม่
               </button>
@@ -542,15 +599,24 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    รหัสโครงการ
+                    รหัสโครงการ <span className="text-red-400">*</span>
                   </label>
                   <input 
                     type="text"
                     value={editCode}
                     onChange={(e) => setEditCode(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-400"
+                    className={`w-full bg-slate-950 border text-white rounded-xl px-3 py-2 text-xs focus:outline-none ${
+                      isEditCodeDuplicate 
+                        ? 'border-red-500 focus:border-red-500 text-red-300' 
+                        : 'border-slate-700 focus:border-amber-400'
+                    }`}
                     required
                   />
+                  {isEditCodeDuplicate && (
+                    <p className="text-[11px] text-red-400 font-bold mt-1">
+                      ⚠️ รหัสโครงการนี้มีในระบบแล้ว
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
@@ -692,7 +758,12 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg transition-all"
+                  disabled={isEditCodeDuplicate || !editCode.trim() || !editName.trim()}
+                  className={`flex-1 py-2 font-extrabold text-xs rounded-xl shadow-lg transition-all ${
+                    isEditCodeDuplicate || !editCode.trim() || !editName.trim()
+                      ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                      : 'bg-amber-400 hover:bg-amber-300 text-slate-950'
+                  }`}
                 >
                   บันทึกการแก้ไข
                 </button>
