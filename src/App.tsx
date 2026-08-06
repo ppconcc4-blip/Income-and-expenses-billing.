@@ -889,30 +889,11 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
         
         {activeTab === 'dashboard' && (
-          <>
-            {!isLoadingConfig && (
-              <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 text-center shadow-lg mb-6">
-                <FileSpreadsheet className={`w-12 h-12 mx-auto mb-4 ${incomeSheetId && billingSheetId ? 'text-emerald-500' : 'text-amber-500'}`} />
-                <h3 className="text-xl font-bold text-white mb-2">
-                  {incomeSheetId && billingSheetId ? 'เชื่อมต่อ Google Sheets แล้ว' : 'ยังไม่ได้เชื่อมต่อ Google Sheets'}
-                </h3>
-                <p className="text-slate-400 mb-6">
-                  {incomeSheetId && billingSheetId ? 'จัดการการเชื่อมต่อหรือเปลี่ยนชีตข้อมูลของคุณ' : 'เชื่อมต่อกับ Google Sheets เพื่อเริ่มการบันทึกข้อมูลและใช้งานระบบเต็มรูปแบบ'}
-                </p>
-                <button
-                  onClick={() => setIsSheetViewerOpen(true)}
-                  className={`${incomeSheetId && billingSheetId ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-amber-500 hover:bg-amber-600 text-slate-950'} font-bold py-2.5 px-6 rounded-xl transition-all`}
-                >
-                  {incomeSheetId && billingSheetId ? 'จัดการ Google Sheets' : 'เชื่อมต่อ Google Sheets ตอนนี้'}
-                </button>
-              </div>
-            )}
-            <MonthlyDashboard
-              projects={activeProjects}
-              transactions={activeTransactions}
-              billingItems={activeBillingItems}
-            />
-          </>
+          <MonthlyDashboard
+            projects={activeProjects}
+            transactions={activeTransactions}
+            billingItems={activeBillingItems}
+          />
         )}
 
         {activeTab === 'transactions' && (
