@@ -618,6 +618,12 @@ export default function App() {
     }, 0);
   };
 
+  // Edit Transaction Handler
+  const handleEditTransaction = (updatedTx: Transaction) => {
+    setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
+    setToastMessage('อัปเดตรายการเรียบร้อยแล้ว');
+  };
+
   // Delete Handlers
   const handleDeleteTransaction = (id: string) => {
     const txToDelete = transactions.find(t => t.id === id);
@@ -913,7 +919,10 @@ export default function App() {
           <TransactionList
             transactions={activeTransactions}
             projects={activeProjects}
+            expenseCategories={expenseCategories}
+            incomeCategories={incomeCategories}
             onDeleteTransaction={handleDeleteTransaction}
+            onEditTransaction={handleEditTransaction}
             onOpenMobileForm={() => {
               if (!googleUser) {
                 alert('กรุณาลอคอินก่อนบันทึกรายการ');
