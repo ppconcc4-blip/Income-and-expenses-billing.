@@ -7,6 +7,8 @@ import {
   FileSpreadsheet, 
   ExternalLink, 
   Trash2, 
+  Pencil,
+  X,
   Calendar, 
   Building2, 
   Tag, 
@@ -20,7 +22,10 @@ interface TransactionListProps {
   isAdmin?: boolean;
   transactions: Transaction[];
   projects: Project[];
+  expenseCategories?: string[];
+  incomeCategories?: string[];
   onDeleteTransaction: (id: string) => void;
+  onEditTransaction?: (updatedTx: Transaction) => void;
   onOpenMobileForm: () => void;
   onOpenPdfModal?: () => void;
 }
@@ -28,7 +33,10 @@ interface TransactionListProps {
 export const TransactionList: React.FC<TransactionListProps> = ({
   transactions,
   projects,
+  expenseCategories,
+  incomeCategories,
   onDeleteTransaction,
+  onEditTransaction,
   onOpenMobileForm,
   onOpenPdfModal,
   isAdmin
@@ -37,6 +45,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   const [selectedType, setSelectedType] = useState<'all' | 'income' | 'expense'>('all');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
@@ -279,23 +288,32 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                       </a>
                     </td>
 
-                    {/* Delete Action */}
+                    {/* Actions: Edit & Delete */}
                     <td className="py-3 px-4 text-center">
-                      <button
-                        onClick={() => {
-                          if (deletingId === tx.id) {
-                            onDeleteTransaction(tx.id);
-                            setDeletingId(null);
-                          } else {
-                            setDeletingId(tx.id);
-                            setTimeout(() => setDeletingId(null), 3000);
-                          }
-                        }}
-                        className={`p-1.5 rounded-lg transition-colors ${deletingId === tx.id ? 'text-white bg-red-600 hover:bg-red-500' : 'text-slate-500 hover:text-red-400 hover:bg-slate-800'}`}
-                        title={deletingId === tx.id ? 'คลิกอีกครั้งเพื่อยืนยัน' : 'ลบรายการนี้'}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => setEditingTx({ ...tx })}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors"
+                          title="แก้ไขรายการนี้"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (deletingId === tx.id) {
+                              onDeleteTransaction(tx.id);
+                              setDeletingId(null);
+                            } else {
+                              setDeletingId(tx.id);
+                              setTimeout(() => setDeletingId(null), 3000);
+                            }
+                          }}
+                          className={`p-1.5 rounded-lg transition-colors ${deletingId === tx.id ? 'text-white bg-red-600 hover:bg-red-500' : 'text-slate-500 hover:text-red-400 hover:bg-slate-800'}`}
+                          title={deletingId === tx.id ? 'คลิกอีกครั้งเพื่อยืนยัน' : 'ลบรายการนี้'}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
 
                   </tr>
@@ -320,6 +338,230 @@ export const TransactionList: React.FC<TransactionListProps> = ({
           </span>
         </div>
       </div>
+
+      {/* Edit Transaction Modal */}
+      {editingTx && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl relative text-slate-200">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-800">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Pencil className="w-5 h-5 text-amber-400" />
+                แก้ไขรายการบัญชี
+              </h3>
+              <button
+                onClick={() => setEditingTx(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!editingTx.amount || editingTx.amount <= 0) {
+                  alert('กรุณากรอกจำนวนเงินให้ถูกต้อง');
+                  return;
+                }
+                if (!editingTx.description.trim()) {
+                  alert('กรุณากรอกรายละเอียด');
+                  return;
+                }
+                if (onEditTransaction) {
+                  onEditTransaction(editingTx);
+                }
+                setEditingTx(null);
+              }}
+              className="space-y-4 text-xs"
+            >
+              {/* Type Selection */}
+              <div>
+                <label className="block text-slate-400 mb-1 font-medium">ประเภทรายการ</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cats = incomeCategories || ['เงินสำรองหน้างาน'];
+                      setEditingTx({
+                        ...editingTx,
+                        type: 'income',
+                        category: cats[0] || 'เงินสำรองหน้างาน'
+                      });
+                    }}
+                    className={`py-2 px-3 rounded-xl font-bold border flex items-center justify-center gap-1.5 transition-all ${
+                      editingTx.type === 'income'
+                        ? 'bg-emerald-950 border-emerald-500 text-emerald-300'
+                        : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-800'
+                    }`}
+                  >
+                    <TrendingUp className="w-4 h-4 text-emerald-400" />
+                    <span>รายรับ</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cats = expenseCategories || ['ค่าวัสดุก่อสร้าง', 'ค่าแรงคนงาน'];
+                      setEditingTx({
+                        ...editingTx,
+                        type: 'expense',
+                        category: cats[0] || 'ค่าวัสดุก่อสร้าง'
+                      });
+                    }}
+                    className={`py-2 px-3 rounded-xl font-bold border flex items-center justify-center gap-1.5 transition-all ${
+                      editingTx.type === 'expense'
+                        ? 'bg-red-950 border-red-500 text-red-300'
+                        : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-800'
+                    }`}
+                  >
+                    <TrendingDown className="w-4 h-4 text-red-400" />
+                    <span>รายจ่าย</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Project & Date */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-medium">โครงการ</label>
+                  <select
+                    value={editingTx.projectId}
+                    onChange={(e) => {
+                      const p = projects.find(proj => proj.id === e.target.value);
+                      setEditingTx({
+                        ...editingTx,
+                        projectId: e.target.value,
+                        projectCode: p ? p.code : editingTx.projectCode
+                      });
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  >
+                    {projects.map(p => (
+                      <option key={p.id} value={p.id}>
+                        [{p.code}] {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1 font-medium">วันที่</label>
+                  <input
+                    type="date"
+                    value={editingTx.date}
+                    onChange={(e) => setEditingTx({ ...editingTx, date: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Category & Amount */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-medium">หมวดหมู่</label>
+                  <select
+                    value={editingTx.category}
+                    onChange={(e) => setEditingTx({ ...editingTx, category: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  >
+                    {(editingTx.type === 'income' ? (incomeCategories || ['เงินสำรองหน้างาน']) : (expenseCategories || ['ค่าวัสดุก่อสร้าง', 'ค่าแรงคนงาน', 'ค่าน้ำมัน', 'ค่าเดินทาง', 'ค่าทางด่วน', 'ค่าเครื่องจักรและอุปกรณ์', 'ค่าซ่อมเครื่องมือ'])).map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                    {!((editingTx.type === 'income' ? (incomeCategories || []) : (expenseCategories || [])).includes(editingTx.category)) && (
+                      <option value={editingTx.category}>{editingTx.category}</option>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1 font-medium">จำนวนเงิน (บาท)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={editingTx.amount || ''}
+                    onChange={(e) => setEditingTx({ ...editingTx, amount: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500 font-bold text-amber-400"
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-slate-400 mb-1 font-medium">รายละเอียด</label>
+                <input
+                  type="text"
+                  value={editingTx.description}
+                  onChange={(e) => setEditingTx({ ...editingTx, description: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  placeholder="ระบุรายละเอียดรายการ"
+                  required
+                />
+              </div>
+
+              {/* Payer/Payee & Document No */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-medium">ผู้รับ / ผู้จ่ายเงิน</label>
+                  <input
+                    type="text"
+                    value={editingTx.payerOrPayee}
+                    onChange={(e) => setEditingTx({ ...editingTx, payerOrPayee: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                    placeholder="ชื่อผู้รับ หรือ ผู้จ่าย"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1 font-medium">เลขที่เอกสาร</label>
+                  <input
+                    type="text"
+                    value={editingTx.documentNo || ''}
+                    onChange={(e) => setEditingTx({ ...editingTx, documentNo: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                    placeholder="เช่น INV-001 / ใบรับเงิน"
+                  />
+                </div>
+              </div>
+
+              {/* Payment Method */}
+              <div>
+                <label className="block text-slate-400 mb-1 font-medium">วิธีชำระเงิน</label>
+                <select
+                  value={editingTx.paymentMethod}
+                  onChange={(e) => setEditingTx({ ...editingTx, paymentMethod: e.target.value as any })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="โอนเงิน">โอนเงิน</option>
+                  <option value="เงินสด">เงินสด</option>
+                  <option value="เช็ค">เช็ค</option>
+                  <option value="บัตรเครดิต">บัตรเครดิต</option>
+                </select>
+              </div>
+
+              {/* Modal Footer Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingTx(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition-colors"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition-colors flex items-center gap-1.5 shadow-md"
+                >
+                  <Pencil className="w-4 h-4" />
+                  <span>บันทึกการแก้ไข</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );
