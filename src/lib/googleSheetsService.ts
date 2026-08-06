@@ -896,7 +896,8 @@ export async function pullDataFromGoogleSheets(
   try {
     const newTransactions: Transaction[] = [];
     const newBillingItems: BillingItem[] = [];
-    const updatedProjects: Project[] = [];
+    // Start with existing local/Firestore projects so none are erased during pull
+    const updatedProjects: Project[] = [...projects];
 
     const getOrCreateProject = (tabName: string, projCode?: string) => {
       const identifier = projCode || tabName;
@@ -930,10 +931,20 @@ export async function pullDataFromGoogleSheets(
 
     // 0. Pull Project Details Tab if exists in incomeSheetId or billingSheetId
     const pullProjectDetailsFromSheet = async (sheetId: string) => {
-      const candidateTabs = ['รายละเอียดโครงการ', 'ข้อมูลโครงการ', 'Projects', 'รายชื่อโครงการ'];
+      const candidateTabs = [
+        'รายละเอียดโครงการ',
+        'ข้อมูลโครงการ',
+        'Projects',
+        'รายชื่อโครงการ',
+        'รายการโครงการ',
+        'Project List',
+        'Project',
+        'Master Projects',
+        'โครงการ'
+      ];
       for (const tabName of candidateTabs) {
         try {
-          const valRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/'${encodeURIComponent(tabName)}'!A2:J1000`, {
+          const valRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/'${encodeURIComponent(tabName)}'!A2:Z2000`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
           });
           if (valRes.status === 401) {
@@ -942,7 +953,7 @@ export async function pullDataFromGoogleSheets(
           if (valRes.ok) {
             const valData = await valRes.json();
             const rows: any[][] = valData.values || [];
-            const isProjListTab = tabName === 'รายชื่อโครงการ';
+            const isProjListTab = tabName === 'รายชื่อโครงการ' || tabName === 'รายการโครงการ';
             for (const row of rows) {
               if (!row || row.length === 0 || (!row[0] && !row[1])) continue;
               const code = row[0] || '';
@@ -964,20 +975,13 @@ export async function pullDataFromGoogleSheets(
               
               if (isProjListTab) {
                 startDate = row[2] || startDate;
-                // row[3] is duration
                 endDate = row[4] || endDate;
                 clientName = row[5] || 'ลูกค้าทั่วไป';
                 contractValue = parseFloat(String(row[6] || '0').replace(/,/g, '')) || 0;
                 budget = parseFloat(String(row[7] || '0').replace(/,/g, '')) || 0;
-                // Because we repurposed some columns before, we should just read indices as they are in the headers array
-                // 8: ลิงก์รายรับรายจ่าย (but stored as sheetUrlIncome, wait, previously we assigned to drawingDriveId. Let's fix that too)
-                const sheetUrlIncome = row[8] || ''; 
-                const sheetUrlBilling = row[9] || '';
                 location = row[10] || '';
                 contractNo = row[11] || '';
                 plannerSheetUrl = row[12] || '';
-                
-                // Let's not overwrite drawing/boq with these if they were incorrectly mapped before, but we can't change history easily.
               } else {
                 clientName = row[2] || 'ลูกค้าทั่วไป';
                 contractValue = parseFloat(String(row[3] || '0').replace(/,/g, '')) || 0;
@@ -1057,7 +1061,17 @@ export async function pullDataFromGoogleSheets(
       await pullProjectDetailsFromSheet(billingSheetId);
     }
 
-    const metaTabNames = ['รายละเอียดโครงการ', 'ข้อมูลโครงการ', 'Projects'];
+    const metaTabNames = [
+      'รายละเอียดโครงการ',
+      'ข้อมูลโครงการ',
+      'Projects',
+      'รายชื่อโครงการ',
+      'รายการโครงการ',
+      'Project List',
+      'Project',
+      'Master Projects',
+      'โครงการ'
+    ];
 
     // 1. Pull Transactions
     if (incomeSheetId) {
@@ -1074,16 +1088,18 @@ export async function pullDataFromGoogleSheets(
           const tabName = s.properties?.title;
           if (!tabName) continue;
           if (metaTabNames.includes(tabName)) continue;
+
+          // Always ensure a project exists for every sheet tab found
+          const tabProj = getOrCreateProject(tabName);
           
-          const valRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${incomeSheetId}/values/'${encodeURIComponent(tabName)}'!A2:I1000`, {
+          const valRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${incomeSheetId}/values/'${encodeURIComponent(tabName)}'!A2:I2000`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
           });
           if (valRes.ok) {
             const valData = await valRes.json();
             const rows: any[][] = valData.values || [];
             
-            // If tab has rows, ensure project exists for this tab
-            const proj = getOrCreateProject(tabName, rows[0] ? rows[0][5] : undefined);
+            const proj = getOrCreateProject(tabName, rows[0] ? rows[0][5] : undefined) || tabProj;
 
             for (const row of rows) {
               if (!row || row.length === 0 || !row[0]) continue;
@@ -1138,14 +1154,16 @@ export async function pullDataFromGoogleSheets(
           if (!tabName) continue;
           if (metaTabNames.includes(tabName)) continue;
           
-          const valRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${billingSheetId}/values/'${encodeURIComponent(tabName)}'!A2:L1000`, {
+          const tabProj = getOrCreateProject(tabName);
+          
+          const valRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${billingSheetId}/values/'${encodeURIComponent(tabName)}'!A2:L2000`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
           });
           if (valRes.ok) {
             const valData = await valRes.json();
             const rows: any[][] = valData.values || [];
 
-            const proj = getOrCreateProject(tabName, rows[0] ? rows[0][1] : undefined);
+            const proj = getOrCreateProject(tabName, rows[0] ? rows[0][1] : undefined) || tabProj;
 
             for (const row of rows) {
               if (!row || row.length === 0 || !row[0]) continue;
