@@ -13,7 +13,8 @@ import {
   Building2, 
   Trash2,
   BellRing,
-  Printer
+  Printer,
+  Download
 } from 'lucide-react';
 import { Project, BillingItem, BillingStatus } from '../types';
 
@@ -57,6 +58,35 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
     }).sort((a, b) => b.billingDate.localeCompare(a.billingDate));
   }, [billingItems, selectedStatus, selectedProjectId, searchTerm]);
 
+  const handleExportCSV = () => {
+    const headers = ['เลขที่ใบวางบิล', 'ชื่อโครงการ', 'ชื่อผู้ว่าจ้าง/ลูกค้า', 'งวดงาน/รายการ', 'วันที่วางบิล', 'วันครบกำหนดชำระ', 'สถานะ', 'วันที่ชำระเงิน', 'จำนวนเงินก่อน VAT', 'VAT 7%', 'จำนวนเงินสุทธิ'];
+    const rows = filteredBilling.map(item => {
+      const statusText = item.status === 'paid' ? 'ชำระแล้ว' : item.status === 'overdue' ? 'เกินกำหนด' : 'รอชำระ';
+      return [
+        item.invoiceNo,
+        `"${(item.projectName || '').replace(/"/g, '""')}"`,
+        `"${(item.clientName || '').replace(/"/g, '""')}"`,
+        `"${(item.period || '').replace(/"/g, '""')}"`,
+        item.billingDate,
+        item.dueDate,
+        statusText,
+        item.paidDate || '',
+        item.subtotal || item.amount,
+        item.vat || 0,
+        item.netTotal || item.amount
+      ];
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `PP_Billing_Invoices_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
       
@@ -72,7 +102,16 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center space-x-2 shrink-0">
+        <div className="flex flex-wrap items-center space-x-2 shrink-0">
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3 py-2 rounded-xl transition-all border border-slate-700"
+            title="ส่งออกตารางใบวางบิลเป็นไฟล์ CSV"
+          >
+            <Download className="w-3.5 h-3.5 text-blue-400" />
+            <span>ส่งออก CSV</span>
+          </button>
+
           {onOpenPdfModal && (
             <button
               onClick={() => onOpenPdfModal()}
