@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Printer, X, FileSpreadsheet, Filter, Calendar, Building2, ArrowUpRight, ArrowDownRight, DollarSign, ExternalLink } from 'lucide-react';
+import { Printer, X, FileSpreadsheet, Filter, Calendar, Building2, ArrowUpRight, ArrowDownRight, DollarSign, ExternalLink, Download, User } from 'lucide-react';
 import { Transaction, Project } from '../types';
 import { PPLogo } from './PPLogo';
 
@@ -19,6 +19,7 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedType, setSelectedType] = useState<'all' | 'income' | 'expense'>('all');
+  const [selectedPayee, setSelectedPayee] = useState<string>('all');
 
   // Get unique months for filter
   const availableMonths = useMemo(() => {
@@ -33,12 +34,24 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
     return Array.from(months).sort().reverse();
   }, [transactions]);
 
+  // Extract unique payees/payers
+  const availablePayees = useMemo(() => {
+    const payees = new Set<string>();
+    transactions.forEach(t => {
+      if (t.payerOrPayee && t.payerOrPayee.trim()) {
+        payees.add(t.payerOrPayee.trim());
+      }
+    });
+    return Array.from(payees).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [transactions]);
+
   // Filter and sort ASCENDING by date (เรียงตามวันที่น้อยไปหามาก)
   const filteredAndSortedTransactions = useMemo(() => {
     return transactions
       .filter(t => {
         const matchProject = selectedProjectId === 'all' || t.projectId === selectedProjectId;
         const matchType = selectedType === 'all' || t.type === selectedType;
+        const matchPayee = selectedPayee === 'all' || (t.payerOrPayee && t.payerOrPayee.trim() === selectedPayee);
         
         let matchMonth = true;
         if (selectedMonth !== 'all') {
@@ -47,7 +60,7 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
           matchMonth = m === selectedMonth;
         }
 
-        return matchProject && matchType && matchMonth;
+        return matchProject && matchType && matchPayee && matchMonth;
       })
       .sort((a, b) => {
         // Date ascending: earliest first (น้อยไปหามาก)
@@ -91,6 +104,59 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
     });
 
     return Array.from(map.values()).sort((a, b) => (b.expense + b.income) - (a.expense + a.income));
+  }, [filteredAndSortedTransactions]);
+
+  // Calculate Income Breakdown by Category (แยกรายรับตามหมวดหมู่ & เงินสำรอง)
+  const incomeCategorySummary = useMemo(() => {
+    const map = new Map<string, { category: string; total: number; count: number }>();
+    let totalInc = 0;
+    let siteAdvanceTotal = 0;
+
+    filteredAndSortedTransactions.forEach(t => {
+      if (t.type === 'income') {
+        const cat = (t.category || '').trim() || 'รายรับอื่นๆ';
+        const current = map.get(cat) || { category: cat, total: 0, count: 0 };
+        current.total += t.amount;
+        current.count += 1;
+        map.set(cat, current);
+        totalInc += t.amount;
+
+        if (cat.includes('สำรอง') || cat.includes('เบิก') || cat.toLowerCase().includes('advance') || cat.toLowerCase().includes('reserve')) {
+          siteAdvanceTotal += t.amount;
+        }
+      }
+    });
+
+    const list = Array.from(map.values()).map(item => ({
+      ...item,
+      percentage: totalInc > 0 ? (item.total / totalInc) * 100 : 0
+    })).sort((a, b) => b.total - a.total);
+
+    return { list, totalInc, siteAdvanceTotal };
+  }, [filteredAndSortedTransactions]);
+
+  // Calculate Expense Breakdown by Category (แยกรายจ่ายตามหมวดหมู่)
+  const expenseCategorySummary = useMemo(() => {
+    const map = new Map<string, { category: string; total: number; count: number }>();
+    let totalExp = 0;
+
+    filteredAndSortedTransactions.forEach(t => {
+      if (t.type === 'expense') {
+        const cat = (t.category || '').trim() || 'หมวดหมู่อื่นๆ';
+        const current = map.get(cat) || { category: cat, total: 0, count: 0 };
+        current.total += t.amount;
+        current.count += 1;
+        map.set(cat, current);
+        totalExp += t.amount;
+      }
+    });
+
+    const list = Array.from(map.values()).map(item => ({
+      ...item,
+      percentage: totalExp > 0 ? (item.total / totalExp) * 100 : 0
+    })).sort((a, b) => b.total - a.total);
+
+    return { list, totalExp };
   }, [filteredAndSortedTransactions]);
 
   if (!isOpen) return null;
@@ -156,6 +222,32 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
     window.open(url, '_blank');
   };
 
+  const handleExportCSV = () => {
+    const headers = ['วันที่', 'ประเภท', 'รหัสโครงการ', 'หมวดหมู่', 'รายละเอียด', 'ผู้รับ/ผู้จ่ายเงิน', 'จำนวนเงิน (บาท)', 'คงเหลือสะสม (บาท)', 'เลขที่เอกสาร', 'วิธีชำระ'];
+    const rows = transactionsWithBalance.map(t => [
+      t.date,
+      t.type === 'income' ? 'รายรับ' : 'รายจ่าย',
+      t.projectCode,
+      t.category,
+      `"${(t.description || '').replace(/"/g, '""')}"`,
+      `"${(t.payerOrPayee || '').replace(/"/g, '""')}"`,
+      t.amount,
+      t.runningBalance,
+      t.documentNo || '',
+      t.paymentMethod || ''
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    const projName = activeProjectObj ? activeProjectObj.code : 'All_Projects';
+    link.setAttribute('download', `PP_Ledger_Report_${projName}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-2 sm:p-4 animate-in fade-in duration-200">
       
@@ -181,6 +273,15 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
             </div>
 
             <div className="flex items-center space-x-2 shrink-0">
+              <button
+                onClick={handleExportCSV}
+                className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold px-3.5 py-2 rounded-xl transition-all shadow-lg active:scale-95"
+                title="ส่งออกรายงานเป็นไฟล์ CSV"
+              >
+                <Download className="w-4 h-4" />
+                <span>ส่งออก CSV</span>
+              </button>
+
               <button
                 onClick={handlePrint}
                 className="flex items-center space-x-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold px-3.5 py-2 rounded-xl transition-all shadow-lg active:scale-95"
@@ -247,16 +348,36 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
             </div>
 
             {/* Type Selector */}
-            <div className="flex items-center space-x-2 min-w-[180px]">
+            <div className="flex items-center space-x-2 min-w-[160px]">
               <span className="text-slate-400 font-medium shrink-0">ประเภท:</span>
               <select
                 value={selectedType}
                 onChange={(e) => setSelectedType(e.target.value as 'all' | 'income' | 'expense')}
-                className="bg-slate-950 border border-slate-700 text-white font-semibold text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-emerald-400"
+                className="bg-slate-950 border border-slate-700 text-white font-semibold text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-emerald-400 w-full"
               >
-                <option value="all">ทั้งหมด (รายรับ & รายจ่าย)</option>
+                <option value="all">ทั้งหมด (รับ/จ่าย)</option>
                 <option value="income">🟢 เฉพาะรายรับ</option>
                 <option value="expense">🔴 เฉพาะรายจ่าย</option>
+              </select>
+            </div>
+
+            {/* Payee / Payer Selector */}
+            <div className="flex items-center space-x-2 flex-1 min-w-[180px]">
+              <span className="text-slate-400 font-medium shrink-0 flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-cyan-400" />
+                <span>ผู้รับ/จ่ายเงิน:</span>
+              </span>
+              <select
+                value={selectedPayee}
+                onChange={(e) => setSelectedPayee(e.target.value)}
+                className="bg-slate-950 border border-slate-700 text-cyan-300 font-bold text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-400 w-full"
+              >
+                <option value="all">👤 ทั้งหมด ({availablePayees.length} ราย)</option>
+                {availablePayees.map(payee => (
+                  <option key={payee} value={payee}>
+                    👤 {payee}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -316,26 +437,67 @@ export const TransactionPdfModal: React.FC<TransactionPdfModalProps> = ({
             </div>
 
             {/* FINANCIAL SUMMARY CARDS */}
-            <div className="grid grid-cols-3 gap-3 mb-4 text-[10.5px]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4 text-[10.5px]">
               <div className="p-2.5 bg-emerald-50 border border-emerald-300 rounded text-emerald-950">
-                <p className="text-[9.5px] font-bold text-emerald-800">รวมรายรับทั้งหมด (TOTAL INCOME)</p>
+                <p className="text-[9px] font-bold text-emerald-800 uppercase">รวมรายรับทั้งหมด (TOTAL INCOME)</p>
                 <p className="text-sm font-black text-emerald-700 mt-0.5">
-                  +{totalIncome.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+                  +{totalIncome.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ฿
+                </p>
+              </div>
+              <div className="p-2.5 bg-blue-50 border border-blue-300 rounded text-blue-950">
+                <p className="text-[9px] font-bold text-blue-800 uppercase">เงินสำรองหน้างาน (SITE RESERVE)</p>
+                <p className="text-sm font-black text-blue-700 mt-0.5">
+                  {incomeCategorySummary.siteAdvanceTotal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ฿
                 </p>
               </div>
               <div className="p-2.5 bg-red-50 border border-red-300 rounded text-red-950">
-                <p className="text-[9.5px] font-bold text-red-800">รวมรายจ่ายทั้งหมด (TOTAL EXPENSE)</p>
+                <p className="text-[9px] font-bold text-red-800 uppercase">รวมรายจ่ายทั้งหมด (TOTAL EXPENSE)</p>
                 <p className="text-sm font-black text-red-700 mt-0.5">
-                  -{totalExpense.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+                  -{totalExpense.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ฿
                 </p>
               </div>
-              <div className={`p-2.5 border rounded ${netBalance >= 0 ? 'bg-blue-50 border-blue-300 text-blue-950' : 'bg-amber-50 border-amber-300 text-amber-950'}`}>
-                <p className="text-[9.5px] font-bold text-slate-800">ยอดคงเหลือสุทธิ (NET BALANCE)</p>
-                <p className={`text-sm font-black mt-0.5 ${netBalance >= 0 ? 'text-blue-900' : 'text-amber-700'}`}>
-                  {netBalance.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+              <div className={`p-2.5 border rounded ${netBalance >= 0 ? 'bg-emerald-50 border-emerald-300 text-emerald-950' : 'bg-amber-50 border-amber-300 text-amber-950'}`}>
+                <p className="text-[9px] font-bold text-slate-800 uppercase">ยอดคงเหลือสุทธิ (NET BALANCE)</p>
+                <p className={`text-sm font-black mt-0.5 ${netBalance >= 0 ? 'text-emerald-800' : 'text-amber-800'}`}>
+                  {netBalance.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ฿
                 </p>
               </div>
             </div>
+
+            {/* EXPENSE BREAKDOWN BY CATEGORY */}
+            {expenseCategorySummary.list.length > 0 && (
+              <div className="mb-4 bg-red-50/60 border border-red-200 rounded-lg p-3">
+                <div className="flex items-center justify-between border-b border-red-200 pb-2 mb-2">
+                  <h3 className="text-[10.5px] font-black text-red-950 uppercase tracking-tight flex items-center gap-1.5">
+                    <span>🏷️ สรุปแยกรายจ่ายตามหมวดหมู่ (EXPENSE BREAKDOWN BY CATEGORY)</span>
+                  </h3>
+                  <span className="text-[9.5px] font-bold text-red-800">
+                    รวมรายจ่ายทั้งสิ้น: {expenseCategorySummary.totalExp.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท ({expenseCategorySummary.list.length} หมวดหมู่)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-[9.5px]">
+                  {expenseCategorySummary.list.map((item) => (
+                    <div key={item.category} className="bg-white border border-red-200 rounded p-2 flex flex-col justify-between shadow-xs">
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="font-extrabold text-slate-900 truncate max-w-[120px]" title={item.category}>
+                          {item.category}
+                        </span>
+                        <span className="text-[8.5px] font-extrabold bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full shrink-0">
+                          {item.percentage.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between text-slate-600 text-[9px] pt-1 border-t border-slate-100">
+                        <span className="text-slate-500">{item.count} รายการ</span>
+                        <span className="font-black text-red-700 text-[10px]">
+                          {item.total.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ฿
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* MAIN TRANSACTIONS TABLE */}
             <table className="w-full text-left border-collapse border border-slate-300 text-[9.5px]">
