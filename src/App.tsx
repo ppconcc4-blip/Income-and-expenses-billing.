@@ -52,6 +52,7 @@ import {
   updateBillingStatusInSheet, 
   deleteTransactionInSheet, 
   deleteBillingInSheet,
+  updateTransactionInSheet,
   pullDataFromGoogleSheets,
   extractSpreadsheetId,
   createNewGoogleSheet
@@ -623,11 +624,36 @@ export default function App() {
 
   // Edit Transaction Handler
   const handleEditTransaction = (updatedTx: Transaction) => {
+    const oldTx = transactions.find(t => t.id === updatedTx.id);
+
     setTransactions(prev => {
       const updated = prev.map(t => t.id === updatedTx.id ? updatedTx : t);
       return updated.sort((a, b) => b.date.localeCompare(a.date));
     });
     setToastMessage('อัปเดตรายการเรียบร้อยแล้ว');
+
+    if (oldTx && googleAccessToken) {
+      const targetSheetId = incomeSheetId || localStorage.getItem('pp_income_sheet_id');
+      if (targetSheetId) {
+        const oldProject = projects.find(p => p.id === oldTx.projectId);
+        const newProject = projects.find(p => p.id === updatedTx.projectId);
+        const oldProjectName = oldProject ? oldProject.name : 'โครงการทั่วไป';
+        const newProjectName = newProject ? newProject.name : 'โครงการทั่วไป';
+
+        updateTransactionInSheet(
+          googleAccessToken,
+          targetSheetId,
+          oldProjectName,
+          newProjectName,
+          oldTx,
+          updatedTx
+        ).then(res => {
+          if (res.success) {
+            console.log(`Auto-synced edited transaction to Google Sheet tab`);
+          }
+        }).catch(err => console.error('Error updating transaction in sheet:', err));
+      }
+    }
   };
 
   // Delete Handlers
