@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, Printer, X, Check, ClipboardCheck, Clock, ExternalLink } from 'lucide-react';
+import { Plus, Trash2, Save, Printer, X, Check, ClipboardCheck, Clock, ExternalLink, Download } from 'lucide-react';
 
 interface WorkerRecord {
   id: string;
@@ -576,6 +576,55 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
     }
   };
 
+  const handleExportCSV = () => {
+    const headers = [
+      'ลำดับ', 'ชื่อ-นามสกุล', 'อัตราค่าจ้าง/วัน', 'จำนวนวันทำงาน', 'ค่าแรงรวม',
+      'อัตรา OT/ชม.', 'ชั่วโมง OT', 'ค่า OT รวม', 'เงินเบิกล่วงหน้า', 'โบนัส/เงินพิเศษ',
+      'รวมรับทั้งสิ้น', 'ประกันสังคม', 'หักค่าจ้าง/สวัสดิการ', 'หักน้ำ/ไฟ/ที่พัก', 'หักหนี้สินงวดนี้',
+      'รวมหักทั้งสิ้น', 'รับสุทธิ', 'หนี้สินคงเหลือ'
+    ];
+
+    const rows = workers.map((w, idx) => {
+      const totalWage = (w.workDays || 0) * (w.wagePerDay || 0);
+      const totalOT = (w.overtimeHours || 0) * (w.overtimeRate || 0);
+      const totalIncome = totalWage + totalOT + (w.advanceIncome || 0) + (w.bonus || 0);
+      const totalDeductions = (w.socialSecurity || 0) + (w.wageDeduction || 0) + (w.utilities || 0) + (w.debt || 0);
+      const netPay = totalIncome - totalDeductions;
+      const remainingDebt = Math.max(0, (w.totalDebt || w.period1Pay || 0) - (w.debt || 0));
+
+      return [
+        idx + 1,
+        `"${(w.fullName || '').replace(/"/g, '""')}"`,
+        w.wagePerDay || 0,
+        w.workDays || 0,
+        totalWage,
+        w.overtimeRate || 0,
+        w.overtimeHours || 0,
+        totalOT,
+        w.advanceIncome || 0,
+        w.bonus || 0,
+        totalIncome,
+        w.socialSecurity || 0,
+        w.wageDeduction || 0,
+        w.utilities || 0,
+        w.debt || 0,
+        totalDeductions,
+        netPay,
+        remainingDebt
+      ];
+    });
+
+    const periodLabel = selectedPeriod === '1-15' ? 'Period1-15' : 'Period16-End';
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `PP_Labor_Wages_${selectedYear}_${selectedMonth}_${periodLabel}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handlePrint = () => {
     const printElement = document.getElementById('wages-printable-area');
     if (!printElement) {
@@ -749,6 +798,14 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
         </div>
         <div className="flex flex-wrap gap-2">
           <button
+            onClick={handleExportCSV}
+            className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3.5 py-2 rounded-xl transition-all border border-slate-700 shadow-md"
+            title="ส่งออกตารางค่าแรงเป็นไฟล์ CSV"
+          >
+            <Download className="w-4 h-4 text-emerald-400" />
+            <span>ส่งออก CSV</span>
+          </button>
+          <button
             onClick={handleSaveToSheet}
             disabled={isSaving}
             className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-md"
@@ -772,7 +829,7 @@ export const LaborWagesManager: React.FC<{ googleUser: User | null }> = ({ googl
             <span>เปิดชีตค่าแรง</span>
           </button>
           <button
-            onClick={() => window.open('https://script.google.com/macros/s/AKfycbx9vh-SEATtDLe4FIksiaeuO4-Lgv6GFoxK8KSHqkoQDcv4LbYetfNelHUj96rkzXsw/exec?view=index', '_blank')}
+            onClick={() => window.open('https://script.google.com/macros/s/AKfycbxbZZXqfVOJs0mWFWiZSDo9iPLXHQTuh4MWTXpm4ugFlvzlOMWzKnmXOaWT9TeIaTry/exec', '_blank')}
             className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-md"
           >
             <Clock className="w-4 h-4" />
