@@ -531,7 +531,10 @@ export default function App() {
       id: `tx-${Date.now()}`,
       createdAt: new Date().toISOString()
     };
-    setTransactions(prev => [newTx, ...prev]);
+    setTransactions(prev => {
+      const updated = [newTx, ...prev];
+      return updated.sort((a, b) => b.date.localeCompare(a.date));
+    });
 
     // Auto-sync to Google Sheet tab
     const targetSheetId = incomeSheetId || localStorage.getItem('pp_income_sheet_id');
@@ -620,7 +623,10 @@ export default function App() {
 
   // Edit Transaction Handler
   const handleEditTransaction = (updatedTx: Transaction) => {
-    setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
+    setTransactions(prev => {
+      const updated = prev.map(t => t.id === updatedTx.id ? updatedTx : t);
+      return updated.sort((a, b) => b.date.localeCompare(a.date));
+    });
     setToastMessage('อัปเดตรายการเรียบร้อยแล้ว');
   };
 
