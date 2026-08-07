@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Printer, X, Edit3, ChevronDown, ChevronUp, Calendar, User, Phone, DollarSign, CheckSquare, Square, MapPin } from 'lucide-react';
+import { Printer, X, Edit3, ChevronDown, ChevronUp, Calendar, User, Phone, DollarSign, CheckSquare, Square, MapPin, Download } from 'lucide-react';
 import { BillingItem, Project } from '../types';
 import { PPLogo } from './PPLogo';
 
@@ -252,6 +252,54 @@ export const BillingPdfModal: React.FC<BillingPdfModalProps> = ({
     const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
+  };
+
+  const handleExportCSV = () => {
+    if (exportMode === 'single') {
+      const headers = ['เลขที่ใบวางบิล', 'ชื่อโครงการ', 'ลูกค้า', 'งวดงาน', 'วันวางบิล', 'วันครบกำหนด', 'จำนวนเงินก่อน VAT', 'หักเงินล่วงหน้า', 'VAT 7%', 'หักประกันผลงาน', 'จำนวนเงินสุทธิ'];
+      const row = [
+        invoiceNo,
+        `"${itemDesc.replace(/"/g, '""')}"`,
+        `"${clientName.replace(/"/g, '""')}"`,
+        `"${periodText.replace(/"/g, '""')}"`,
+        billingDateText,
+        dueDateText,
+        baseSubtotal,
+        advanceDeduction,
+        vat7,
+        retentionDeduction,
+        netTotal
+      ];
+      const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), row.join(',')].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `PP_Invoice_${invoiceNo}_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      const headers = ['เลขที่ใบวางบิล', 'ชื่อโครงการ', 'ผู้ว่าจ้าง', 'งวดงาน', 'วันวางบิล', 'วันครบกำหนด', 'วันที่ชำระ', 'ยอดรับสุทธิ (บาท)', 'สถานะ'];
+      const rows = filteredTableItems.map(item => [
+        item.invoiceNo,
+        `"${(item.projectName || '').replace(/"/g, '""')}"`,
+        `"${(item.clientName || '').replace(/"/g, '""')}"`,
+        `"${(item.period || '').replace(/"/g, '""')}"`,
+        item.billingDate,
+        item.dueDate,
+        item.paidDate || '',
+        item.totalPayable,
+        item.status === 'paid' ? 'ชำระแล้ว' : item.status === 'billed' ? 'วางบิลแล้ว' : item.status === 'pending' ? 'รอวางบิล' : 'เกินกำหนด'
+      ]);
+      const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `PP_Billing_Summary_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   // Helper to render exact single invoice sheet matching original / copy PDF
@@ -557,6 +605,15 @@ export const BillingPdfModal: React.FC<BillingPdfModalProps> = ({
                   📊 ตารางสรุปการวางบิล
                 </button>
               </div>
+
+              <button
+                onClick={handleExportCSV}
+                className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold px-3.5 py-2 rounded-xl transition-all shadow-lg active:scale-95"
+                title="ส่งออกข้อมูลเป็นไฟล์ CSV"
+              >
+                <Download className="w-4 h-4" />
+                <span>ส่งออก CSV</span>
+              </button>
 
               <button
                 onClick={handlePrint}
