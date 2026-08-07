@@ -425,8 +425,10 @@ export async function createFolderSheetsSeparatedByProjects(
       const proj = activeProjects[index];
       const tabName = proj.name.slice(0, 80);
 
-      // Filter transactions for this project
-      const projTx = transactions.filter(t => t.projectId === proj.id || t.projectCode === proj.code);
+      // Filter transactions for this project and sort chronologically by date
+      const projTx = transactions
+        .filter(t => t.projectId === proj.id || t.projectCode === proj.code)
+        .sort((a, b) => a.date.localeCompare(b.date));
       const txRows = projTx.map(tx => [
         tx.date,
         tx.type === 'income' ? 'รายรับ' : 'รายจ่าย',
@@ -559,6 +561,71 @@ export async function deleteSheetTab(
 }
 
 /**
+ * Automatically sort a worksheet tab by Date (Column A)
+ */
+export async function sortSheetTabByDate(
+  accessToken: string,
+  spreadsheetId: string,
+  tabName: string,
+  ascending = true
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`, {
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+
+    if (!metaRes.ok) return { success: false, message: 'ไม่สามารถดึงข้อมูล Google Sheet ได้' };
+
+    const meta = await metaRes.json();
+    const sheet = meta.sheets?.find((s: any) => s.properties?.title === tabName);
+
+    if (!sheet) {
+      return { success: false, message: `ไม่พบชีตชื่อ "${tabName}"` };
+    }
+
+    const sheetId = sheet.properties.sheetId;
+
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        requests: [
+          {
+            sortRange: {
+              range: {
+                sheetId: sheetId,
+                startRowIndex: 1, // Skip header row
+                startColumnIndex: 0, // Column A (วันที่)
+                endColumnIndex: 10
+              },
+              sortSpecs: [
+                {
+                  dimensionIndex: 0, // Column A (วันที่)
+                  sortOrder: ascending ? 'ASCENDING' : 'DESCENDING'
+                }
+              ]
+            }
+          }
+        ]
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || 'ไม่สามารถเรียงวันที่ใน Sheet ได้');
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error sorting sheet tab by date:', err);
+    return { success: false, message: err.message };
+  }
+}
+
+/**
  * Automatically sync a single transaction to the project's sheet tab
  */
 export async function autoSyncTransactionToSheet(
@@ -602,6 +669,11 @@ export async function autoSyncTransactionToSheet(
       const err = await res.json();
       throw new Error(err.error?.message || 'ไม่สามารถซิงค์ลง Google Sheet ได้');
     }
+
+    // Auto sort sheet tab by date after appending
+    await sortSheetTabByDate(accessToken, spreadsheetId, tabName, true).catch(err => {
+      console.warn('Auto sort sheet tab warning:', err);
+    });
 
     return { success: true };
   } catch (err: any) {
@@ -899,20 +971,46 @@ export async function pullDataFromGoogleSheets(
     // Start with existing local/Firestore projects so none are erased during pull
     const updatedProjects: Project[] = [...projects];
 
+    const GENERIC_TAB_NAMES = [
+      'sheet1', 'sheet2', 'sheet3', 'sheet4', 'sheet5', 'sheet',
+      'รายรับรายจ่าย', 'รายรับ', 'รายจ่าย', 'รับจ่าย',
+      'การวางบิล', 'วางบิล', 'ใบวางบิล',
+      'รายละเอียดโครงการ', 'ข้อมูลโครงการ', 'รายชื่อโครงการ', 'รายการโครงการ', 'โครงการ',
+      'projects', 'project list', 'project', 'master projects',
+      'สรุป', 'สรุปผล', 'dashboard', 'summary', 'overview',
+      'รายงาน', 'คำนวณ', 'template', 'หน้าแรก', 'home',
+      'ค่าแรง', 'ค่าแรงคนงาน', 'labor', 'wages'
+    ];
+
     const getOrCreateProject = (tabName: string, projCode?: string) => {
-      const identifier = projCode || tabName;
+      const cleanedCode = projCode?.trim();
+      const cleanedTab = tabName.trim();
+      const isTabGeneric = GENERIC_TAB_NAMES.includes(cleanedTab.toLowerCase());
+
       let existing = updatedProjects.find(
-        p => (projCode && p.code.toLowerCase() === projCode.toLowerCase()) || 
-             p.name.toLowerCase() === tabName.toLowerCase() || 
-             p.id === identifier || 
-             p.sheetTabName === tabName
+        p => (cleanedCode && p.code.toLowerCase() === cleanedCode.toLowerCase()) || 
+             (cleanedCode && p.name.toLowerCase() === cleanedCode.toLowerCase()) ||
+             (!isTabGeneric && p.name.toLowerCase() === cleanedTab.toLowerCase()) || 
+             (!isTabGeneric && p.id === cleanedTab) || 
+             (!isTabGeneric && p.sheetTabName?.toLowerCase() === cleanedTab.toLowerCase())
       );
       if (!existing) {
-        const isGeneric = ['รายรับรายจ่าย', 'การวางบิล', 'Sheet1', 'sheet1', 'รายรับ', 'รายจ่าย'].includes(tabName);
+        // If tab is generic and no valid non-generic projCode is provided, do NOT create a dummy project
+        if (isTabGeneric && (!cleanedCode || GENERIC_TAB_NAMES.includes(cleanedCode.toLowerCase()))) {
+          return null;
+        }
+
+        const codeToUse = (cleanedCode && !GENERIC_TAB_NAMES.includes(cleanedCode.toLowerCase())) ? cleanedCode : cleanedTab;
+        const nameToUse = (isTabGeneric && cleanedCode) ? cleanedCode : cleanedTab;
+
+        if (GENERIC_TAB_NAMES.includes(nameToUse.toLowerCase())) {
+          return null;
+        }
+
         const newProj: Project = {
           id: `proj-sheet-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-          code: projCode || (isGeneric ? `P-${Math.floor(100 + updatedProjects.length)}` : tabName),
-          name: isGeneric && projCode ? projCode : tabName,
+          code: codeToUse,
+          name: nameToUse,
           clientName: 'ลูกค้าทั่วไป',
           contractValue: 0,
           budget: 0,
@@ -921,7 +1019,7 @@ export async function pullDataFromGoogleSheets(
           status: 'active',
           sheetUrlIncome: incomeSheetId ? `https://docs.google.com/spreadsheets/d/${incomeSheetId}/edit` : '',
           sheetUrlBilling: billingSheetId ? `https://docs.google.com/spreadsheets/d/${billingSheetId}/edit` : '',
-          sheetTabName: tabName
+          sheetTabName: isTabGeneric ? undefined : cleanedTab
         };
         updatedProjects.push(newProj);
         existing = newProj;
@@ -1219,12 +1317,39 @@ export async function pullDataFromGoogleSheets(
       }
     }
 
+    // Sort transactions by date descending (newest first)
+    newTransactions.sort((a, b) => b.date.localeCompare(a.date));
+
+    // Collect all project IDs referenced by pulled transactions or billing items
+    const pulledProjectIds = new Set<string>();
+    newTransactions.forEach(t => { if (t.projectId && t.projectId !== 'default') pulledProjectIds.add(t.projectId); });
+    newBillingItems.forEach(b => { if (b.projectId && b.projectId !== 'default') pulledProjectIds.add(b.projectId); });
+
+    // Filter updatedProjects to ensure no generic tabs or unreferenced initial mock projects remain
+    const hasPulledData = updatedProjects.some(p => p.id.startsWith('proj-sheet-')) || newTransactions.length > 0 || newBillingItems.length > 0;
+
+    const finalProjects = updatedProjects.filter(p => {
+      const nameLower = (p.name || '').trim().toLowerCase();
+      const codeLower = (p.code || '').trim().toLowerCase();
+      // Remove any project named after generic sheet tabs (e.g., Sheet1, รายรับรายจ่าย, การวางบิล)
+      if (GENERIC_TAB_NAMES.includes(nameLower) || GENERIC_TAB_NAMES.includes(codeLower)) {
+        return false;
+      }
+      // Keep if referenced by pulled transactions or billing
+      if (pulledProjectIds.has(p.id)) return true;
+      // Keep if explicitly pulled/created from sheet details tab
+      if (p.id.startsWith('proj-sheet-')) return true;
+      // Remove initial mock demo projects (proj-1, proj-2, proj-3) if real sheet data was pulled
+      if (hasPulledData && ['proj-1', 'proj-2', 'proj-3'].includes(p.id)) return false;
+      return true;
+    });
+
     return {
       success: true,
       transactions: newTransactions,
       billingItems: newBillingItems,
-      projects: updatedProjects,
-      message: `ดึงข้อมูลสำเร็จ! พบโครงการ ${updatedProjects.length} โครงการ, รายรับรายจ่าย ${newTransactions.length} รายการ และการวางบิล ${newBillingItems.length} รายการ`
+      projects: finalProjects,
+      message: `ดึงข้อมูลสำเร็จ! พบโครงการ ${finalProjects.length} โครงการ, รายรับรายจ่าย ${newTransactions.length} รายการ และการวางบิล ${newBillingItems.length} รายการ`
     };
   } catch (err: any) {
     console.error('Error pulling data from Google Sheets:', err);
