@@ -951,6 +951,112 @@ export async function deleteBillingInSheet(
 }
 
 /**
+ * Automatically update an existing transaction in its Google Sheet tab.
+ * If project changed, deletes from old tab and appends to new tab.
+ * If date changed or details changed, updates in place and auto-sorts tab by date.
+ */
+export async function updateTransactionInSheet(
+  accessToken: string,
+  spreadsheetId: string,
+  oldProjectName: string,
+  newProjectName: string,
+  oldTx: Transaction,
+  updatedTx: Transaction
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const oldTabName = (oldProjectName || 'โครงการทั่วไป').slice(0, 80);
+    const newTabName = (newProjectName || 'โครงการทั่วไป').slice(0, 80);
+
+    // If project changed, delete from old sheet tab and append to new sheet tab
+    if (oldTabName !== newTabName || oldTx.projectId !== updatedTx.projectId) {
+      await deleteTransactionInSheet(accessToken, spreadsheetId, oldProjectName, oldTx);
+      return await autoSyncTransactionToSheet(accessToken, spreadsheetId, newProjectName, updatedTx);
+    }
+
+    // Same project tab: find matching row and update
+    const getRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(oldTabName)}'!A:I`, {
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+
+    if (!getRes.ok) {
+      return await autoSyncTransactionToSheet(accessToken, spreadsheetId, newProjectName, updatedTx);
+    }
+
+    const data = await getRes.json();
+    const rows = data.values || [];
+
+    let rowIndex = -1;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || r.length === 0) continue;
+      const rDate = String(r[0] || '').trim();
+      const rType = String(r[1] || '').trim();
+      const rCat = String(r[2] || '').trim();
+      const rDesc = String(r[3] || '').trim();
+      const rAmt = String(r[4] || '').trim();
+
+      const oldTypeStr = oldTx.type === 'income' ? 'รายรับ' : 'รายจ่าย';
+      const oldDescStr = (oldTx.description || '-').trim();
+
+      if (
+        rDate === oldTx.date &&
+        (rType === oldTypeStr || rType === oldTx.type) &&
+        rCat === oldTx.category &&
+        (rDesc === oldDescStr || (oldDescStr === '-' && !rDesc)) &&
+        (rAmt === String(oldTx.amount) || parseFloat(rAmt.replace(/,/g, '')) === oldTx.amount)
+      ) {
+        rowIndex = i + 1; // 1-based index
+        break;
+      }
+    }
+
+    const values = [
+      [
+        updatedTx.date,
+        updatedTx.type === 'income' ? 'รายรับ' : 'รายจ่าย',
+        updatedTx.category,
+        updatedTx.description || '-',
+        updatedTx.amount,
+        updatedTx.projectCode || updatedTx.projectId,
+        updatedTx.payerOrPayee || '-',
+        updatedTx.documentNo || '-',
+        updatedTx.paymentMethod || '-'
+      ]
+    ];
+
+    if (rowIndex !== -1) {
+      const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(oldTabName)}'!A${rowIndex}:I${rowIndex}?valueInputOption=USER_ENTERED`;
+      const updateRes = await fetch(updateUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ values })
+      });
+
+      if (!updateRes.ok) {
+        const err = await updateRes.json();
+        throw new Error(err.error?.message || 'ไม่สามารถอัปเดตข้อมูลใน Sheet ได้');
+      }
+    } else {
+      // Row not found in sheet, append instead
+      await autoSyncTransactionToSheet(accessToken, spreadsheetId, newProjectName, updatedTx);
+    }
+
+    // Auto sort sheet tab by date
+    await sortSheetTabByDate(accessToken, spreadsheetId, oldTabName, true).catch(err => {
+      console.warn('Auto sort sheet tab warning:', err);
+    });
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error updating transaction in sheet:', err);
+    return { success: false, message: err.message };
+  }
+}
+
+/**
  * Pull and sync all data from Google Sheets into local web app state
  */
 export async function pullDataFromGoogleSheets(
